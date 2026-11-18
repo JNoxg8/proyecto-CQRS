@@ -21,7 +21,11 @@ La solución es una tienda de calzado en línea:
 - **Seguridad:** inicio de sesión con JWT firmado (RS256) y roles: un cliente solo usa la tienda y el administrador
   tiene acceso total.
 
-📄 Documentación completa en Word: [`docs/`](docs/) (documentación del proyecto y guía de ejecución y demostración).
+📄 Documentación en Word (carpeta [`docs/`](docs/)):
+- [Documentación del proyecto](docs/Documentacion_Proyecto_CQRS.docx): marco conceptual, arquitectura, modelo de
+  datos, eventos, API, seguridad, pruebas, decisiones de diseño y limitaciones.
+- [Guía de ejecución y demostración](docs/Guia_de_ejecucion_y_demostracion.docx): qué hacer paso a paso y dónde se
+  ve reflejado cada paso (consolas, pgAdmin, Compass, Kafka UI y navegador).
 
 ## Contenido
 
