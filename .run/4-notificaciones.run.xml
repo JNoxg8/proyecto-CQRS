@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="4. Servicio notificaciones" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.tienda.notificaciones.ServicioNotificacionesApplication" />
+    <module name="servicio-notificaciones" />
+    <option name="VM_PARAMETERS" value="-Xmx256m" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/servicio-notificaciones" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

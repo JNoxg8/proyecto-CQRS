@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Tienda: TODO (servidor + clientes)" type="CompoundRunConfigurationType">
+    <toRun name="1. Servicio autenticación (8083)" type="Application" />
+    <toRun name="2. Servicio comandos (8081)" type="Application" />
+    <toRun name="3. Servicio consultas (8082)" type="Application" />
+    <toRun name="4. Servicio notificaciones" type="Application" />
+    <toRun name="5. Cliente web (8080)" type="Application" />
+    <method v="2" />
+  </configuration>
+</component>

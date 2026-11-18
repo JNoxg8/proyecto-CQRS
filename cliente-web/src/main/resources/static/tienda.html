@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tienda de calzado</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👟</text></svg>">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+<header class="barra">
+  <div>
+    <h1>👟 Tienda de calzado</h1>
+    <p class="subtitulo">Aplicación cliente · <strong>Comprador</strong></p>
+  </div>
+  <nav>
+    <a href="admin.html" id="enlace-admin" hidden>Panel admin</a>
+    <span id="sesion"></span>
+    <span id="conexion" class="conexion fuera">● Conectando…</span>
+  </nav>
+</header>
+
+<div class="pagina">
+  <main class="contenido">
+    <section class="panel">
+      <h2>Catálogo <small>· leído de MongoDB por el servicio de consultas</small></h2>
+      <form id="filtros" class="fila">
+        <label>Marca <select id="f-marca"><option value="">Todas</option></select></label>
+        <label>Categoría <select id="f-categoria"><option value="">Todas</option></select></label>
+        <label>Talla <select id="f-talla"><option value="">Todas</option></select></label>
+        <label>Precio máximo <input id="f-precio" type="number" min="0" step="10000" placeholder="Sin límite"></label>
+        <label class="check"><input id="f-disponibles" type="checkbox"> Solo disponibles</label>
+        <button type="reset" class="secundario">Limpiar filtros</button>
+      </form>
+      <div id="catalogo" class="rejilla"><p class="vacio">Cargando catálogo…</p></div>
+    </section>
+
+    <section class="panel">
+      <h2>Mis pedidos</h2>
+      <div id="mis-pedidos" class="tabla-scroll"><p class="vacio">Cargando…</p></div>
+    </section>
+  </main>
+
+  <aside class="panel actividad">
+    <h2>Actividad en vivo</h2>
+    <p class="flujo">Cada línea es un evento que viajó:<br>
+      servicio de comandos → <strong>Kafka</strong> → servicio de consultas → tu navegador (SSE).<br>
+      Solo ves cambios del catálogo y <strong>tus</strong> pedidos.</p>
+    <ol id="actividad"><li id="actividad-vacia" class="vacio">Aún no hay eventos.</li></ol>
+  </aside>
+</div>
+
+<div id="avisos" class="avisos" aria-live="polite"></div>
+
+<script src="js/comun.js"></script>
+<script src="js/tienda.js"></script>
+</body>
+</html>

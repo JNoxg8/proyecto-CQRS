@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="2. Servicio comandos (8081)" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.tienda.comandos.ServicioComandosApplication" />
+    <module name="servicio-comandos" />
+    <option name="VM_PARAMETERS" value="-Xmx256m" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/servicio-comandos" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

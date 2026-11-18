@@ -1,0 +1,31 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: servicio-autenticacion
+  # Its own database (database-per-service): the other services never read the users table.
+  datasource:
+    url: jdbc:postgresql://localhost:5434/tienda_usuarios
+    username: tienda
+    password: tienda123
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+tienda:
+  cors-origenes: http://localhost:8080,http://127.0.0.1:8080
+  token:
+    duracion: 2h          # how long a login lasts
+  # DEMO accounts created at startup if they do not exist.
+  # In a real deployment these values would come from environment variables, never from the repository.
+  usuarios-iniciales:
+    admin:
+      nombre: Administrador
+      email: admin@tienda.com
+      password: Admin123*
+    cliente:
+      nombre: Ana Rojas
+      email: ana@correo.com
+      password: Cliente123*

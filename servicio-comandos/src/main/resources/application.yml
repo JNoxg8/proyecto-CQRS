@@ -1,0 +1,35 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: servicio-comandos
+
+  # Write model: PostgreSQL (docker-compose service "postgres", host port 5434)
+  datasource:
+    url: jdbc:postgresql://localhost:5434/tienda_comandos
+    username: tienda
+    password: tienda123
+  jpa:
+    hibernate:
+      ddl-auto: update        # creates/updates the tables from the @Entity classes (fine for a class project)
+    open-in-view: false
+
+  # Public keys of servicio-autenticacion: used to verify the signature of every JWT
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8083/.well-known/jwks.json
+
+  kafka:
+    bootstrap-servers: localhost:9094
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+tienda:
+  # Origins allowed to call this API from a browser (the client apps of cliente-web)
+  cors-origenes: http://localhost:8080,http://127.0.0.1:8080
+  # Registers a few shoes the first time the service starts (only if the table is empty)
+  datos-iniciales: true

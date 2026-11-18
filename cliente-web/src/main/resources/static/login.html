@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iniciar sesión</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👟</text></svg>">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+<header class="barra">
+  <div>
+    <h1>👟 Tienda de calzado</h1>
+    <p class="subtitulo">Inicia sesión o crea tu cuenta</p>
+  </div>
+  <nav><a href="tienda.html">Volver a la tienda</a></nav>
+</header>
+
+<main class="acceso">
+  <p id="motivo" class="motivo" hidden></p>
+
+  <div class="acceso-paneles">
+    <section class="panel">
+      <h2>Iniciar sesión</h2>
+      <form id="form-login" class="columna">
+        <label>Correo <input name="email" type="email" required autocomplete="username"></label>
+        <label>Contraseña <input name="password" type="password" required autocomplete="current-password"></label>
+        <button type="submit">Entrar</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>¿Eres nuevo? Crea tu cuenta</h2>
+      <form id="form-registro" class="columna">
+        <label>Nombre <input name="nombre" required maxlength="80" autocomplete="name"></label>
+        <label>Correo <input name="email" type="email" required maxlength="120" autocomplete="email"></label>
+        <label>Contraseña <small>(mínimo 8 caracteres)</small>
+          <input name="password" type="password" required minlength="8" maxlength="72" autocomplete="new-password"></label>
+        <button type="submit" class="exito">Crear cuenta de cliente</button>
+      </form>
+      <p class="ayuda">Las cuentas nuevas siempre son de <strong>cliente</strong>. Las cuentas de administrador
+        no se pueden crear desde aquí.</p>
+    </section>
+  </div>
+</main>
+
+<div id="avisos" class="avisos" aria-live="polite"></div>
+
+<script src="js/comun.js"></script>
+<script src="js/login.js"></script>
+</body>
+</html>

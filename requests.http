@@ -1,0 +1,106 @@
+### =============================================================
+### 1. LOGIN -> servicio-autenticacion :8083
+###    (demo accounts: see servicio-autenticacion/src/main/resources/application.yml)
+###    The "> {% ... %}" block saves the token in a variable (IntelliJ HTTP Client).
+### =============================================================
+
+### Login as ADMIN
+POST http://localhost:8083/api/auth/login
+Content-Type: application/json
+
+{ "email": "admin@tienda.com", "password": "Admin123*" }
+
+> {% client.global.set("tokenAdmin", response.body.token); %}
+
+### Login as CLIENTE (Ana)
+POST http://localhost:8083/api/auth/login
+Content-Type: application/json
+
+{ "email": "ana@correo.com", "password": "Cliente123*" }
+
+> {% client.global.set("tokenCliente", response.body.token); %}
+
+### Sign up a new customer (always role CLIENTE)
+POST http://localhost:8083/api/auth/registro
+Content-Type: application/json
+
+{ "nombre": "Luis Pérez", "email": "luis@correo.com", "password": "clave-luis-2026" }
+
+### Public key used by the other services to verify tokens
+GET http://localhost:8083/.well-known/jwks.json
+
+### =============================================================
+### 2. COMMANDS (write side) -> servicio-comandos :8081 -> PostgreSQL
+### =============================================================
+
+### [CLIENTE] Buy: only WHAT to buy; WHO buys comes from the token
+POST http://localhost:8081/api/pedidos
+Content-Type: application/json
+Authorization: Bearer {{tokenCliente}}
+
+{ "calzadoId": 1, "cantidad": 1 }
+
+### [CLIENTE] Cancel one of MY orders (403 if it belongs to someone else)
+POST http://localhost:8081/api/pedidos/1/cancelar
+Authorization: Bearer {{tokenCliente}}
+
+### [CLIENTE] Try to register a shoe -> 403 Forbidden
+POST http://localhost:8081/api/calzados
+Content-Type: application/json
+Authorization: Bearer {{tokenCliente}}
+
+{ "marca": "X", "modelo": "X", "categoria": "casual", "talla": 40, "color": "x", "precio": 1000, "stockInicial": 1 }
+
+### [no token] Buy -> 401 Unauthorized
+POST http://localhost:8081/api/pedidos
+Content-Type: application/json
+
+{ "calzadoId": 1, "cantidad": 1 }
+
+### [ADMIN] Register a shoe
+POST http://localhost:8081/api/calzados
+Content-Type: application/json
+Authorization: Bearer {{tokenAdmin}}
+
+{ "marca": "Nike", "modelo": "Pegasus 41", "categoria": "deportivo", "talla": 41, "color": "negro", "precio": 529900, "stockInicial": 4 }
+
+### [ADMIN] Change the price of shoe #1
+PUT http://localhost:8081/api/calzados/1/precio
+Content-Type: application/json
+Authorization: Bearer {{tokenAdmin}}
+
+{ "nuevoPrecio": 399900 }
+
+### [ADMIN] Restock shoe #7
+POST http://localhost:8081/api/calzados/7/reponer-stock
+Content-Type: application/json
+Authorization: Bearer {{tokenAdmin}}
+
+{ "cantidad": 5 }
+
+### [ADMIN] Ship order #1
+POST http://localhost:8081/api/pedidos/1/despachar
+Authorization: Bearer {{tokenAdmin}}
+
+### =============================================================
+### 3. QUERIES (read side) -> servicio-consultas :8082 -> MongoDB
+### =============================================================
+
+### [public] Catalog with filters
+GET http://localhost:8082/api/catalogo?categoria=deportivo&precioMax=450000&soloDisponibles=true
+
+### [CLIENTE] My orders (the e-mail comes from the token)
+GET http://localhost:8082/api/pedidos/mios
+Authorization: Bearer {{tokenCliente}}
+
+### [CLIENTE] All orders -> 403
+GET http://localhost:8082/api/pedidos
+Authorization: Bearer {{tokenCliente}}
+
+### [ADMIN] All orders
+GET http://localhost:8082/api/pedidos
+Authorization: Bearer {{tokenAdmin}}
+
+### [ADMIN] Rebuild the read model from the Kafka events
+POST http://localhost:8082/api/admin/reconstruir
+Authorization: Bearer {{tokenAdmin}}

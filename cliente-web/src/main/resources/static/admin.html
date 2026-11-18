@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel de administración</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👟</text></svg>">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<!-- Hidden until admin.js confirms the session is ADMIN (cosmetic: the APIs enforce the real permissions) -->
+<body hidden>
+<header class="barra">
+  <div>
+    <h1>🛠️ Panel de administración</h1>
+    <p class="subtitulo">Aplicación cliente · <strong>Administrador de la tienda</strong></p>
+  </div>
+  <nav>
+    <a href="tienda.html">Ver tienda</a>
+    <a href="http://localhost:8090" target="_blank" rel="noopener">Kafka UI</a>
+    <span id="sesion"></span>
+    <span id="conexion" class="conexion fuera">● Conectando…</span>
+  </nav>
+</header>
+
+<div class="pagina">
+  <main class="contenido">
+    <section class="resumen" aria-label="Resumen">
+      <div class="cifra"><span>Pedidos</span><strong id="r-pedidos">–</strong></div>
+      <div class="cifra"><span>Ventas (sin cancelados)</span><strong id="r-ventas">–</strong></div>
+      <div class="cifra"><span>Pares en inventario</span><strong id="r-unidades">–</strong></div>
+      <div class="cifra"><span>Referencias agotadas</span><strong id="r-agotados">–</strong></div>
+    </section>
+
+    <section class="panel">
+      <h2>Registrar calzado <small>· comando enviado al servicio de comandos</small></h2>
+      <form id="form-registrar" class="fila">
+        <label>Marca <input name="marca" required maxlength="40" placeholder="Nike"></label>
+        <label>Modelo <input name="modelo" required maxlength="60" placeholder="Pegasus 41"></label>
+        <label>Categoría
+          <select name="categoria" required>
+            <option value="deportivo">Deportivo</option>
+            <option value="casual">Casual</option>
+            <option value="formal">Formal</option>
+            <option value="botas">Botas</option>
+            <option value="sandalias">Sandalias</option>
+          </select>
+        </label>
+        <label>Talla <input name="talla" type="number" required min="15" max="50" step="0.5" value="40"></label>
+        <label>Color <input name="color" required maxlength="30" placeholder="negro"></label>
+        <label>Precio (COP) <input name="precio" type="number" required min="1" step="100" placeholder="399900"></label>
+        <label>Stock inicial <input name="stockInicial" type="number" required min="0" max="1000" value="5"></label>
+        <button type="submit">Registrar</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Inventario <small>· leído de MongoDB por el servicio de consultas</small></h2>
+      <div class="tabla-scroll">
+        <table>
+          <thead><tr><th>#</th><th>Calzado</th><th>Talla</th><th>Color</th><th>Precio</th><th>Stock</th></tr></thead>
+          <tbody id="inventario"><tr><td colspan="6" class="vacio">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Pedidos</h2>
+      <div class="tabla-scroll">
+        <table>
+          <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Calzado</th><th>Cant.</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="pedidos"><tr><td colspan="8" class="vacio">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Demostración: el modelo de lectura es desechable</h2>
+      <p class="ayuda">Borra todas las colecciones de MongoDB y hace que el servicio de consultas vuelva a leer
+        <strong>todos</strong> los eventos guardados en Kafka desde el principio. En segundos el catálogo y los pedidos
+        se reconstruyen solos. PostgreSQL (escritura) no se toca.</p>
+      <p><button id="reconstruir" class="peligro">Reconstruir modelo de lectura</button></p>
+    </section>
+  </main>
+
+  <aside class="panel actividad">
+    <h2>Actividad en vivo</h2>
+    <p class="flujo">Cada línea es un evento que viajó:<br>
+      servicio de comandos → <strong>Kafka</strong> → servicio de consultas → este navegador (SSE)</p>
+    <ol id="actividad"><li id="actividad-vacia" class="vacio">Aún no hay eventos.</li></ol>
+  </aside>
+</div>
+
+<div id="avisos" class="avisos" aria-live="polite"></div>
+
+<script src="js/comun.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>

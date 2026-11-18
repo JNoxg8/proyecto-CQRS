@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="1. Servicio autenticación (8083)" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.tienda.autenticacion.ServicioAutenticacionApplication" />
+    <module name="servicio-autenticacion" />
+    <option name="VM_PARAMETERS" value="-Xmx256m" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/servicio-autenticacion" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
