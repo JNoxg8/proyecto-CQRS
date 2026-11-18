@@ -7,8 +7,7 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-lectura-47A248)
 ![Pruebas](https://img.shields.io/badge/pruebas-35%20JUnit-blue)
 
-Proyecto académico de ingeniería de software. Enunciado: *"desarrollar una solución que tenga una pila de
-mensajería, que tenga CQRS, aplicación servidor y aplicaciones cliente"*.
+Proyecto académico
 
 La solución es una tienda de calzado en línea:
 
