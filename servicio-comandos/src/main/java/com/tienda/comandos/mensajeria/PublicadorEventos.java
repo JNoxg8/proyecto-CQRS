@@ -31,11 +31,13 @@ public class PublicadorEventos {
         this.kafka = kafka;
     }
 
+    /** Shoe events -> topic calzado-eventos, key = calzadoId. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void publicar(CalzadoEvento evento) {
         enviar(Topicos.CALZADOS, evento.calzadoId(), evento.tipo().name(), evento);
     }
 
+    /** Order events -> topic pedido-eventos, key = pedidoId. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void publicar(PedidoEvento evento) {
         enviar(Topicos.PEDIDOS, evento.pedidoId(), evento.tipo().name(), evento);

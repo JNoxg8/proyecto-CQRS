@@ -27,6 +27,10 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SeguridadConfig {
 
+    /**
+     * Stateless resource server: every request must carry a JWT signed by servicio-autenticacion
+     * (verified with the public key from {@code jwk-set-uri}).
+     */
     @Bean
     public SecurityFilterChain filtroSeguridad(HttpSecurity http) throws Exception {
         return http

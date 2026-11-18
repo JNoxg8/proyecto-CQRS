@@ -15,6 +15,7 @@ public class CorsConfig implements WebMvcConfigurer {
         this.origenes = origenes;
     }
 
+    /** Allows POST from the configured origins (tienda.cors-origenes). */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**").allowedOrigins(origenes).allowedMethods("POST");

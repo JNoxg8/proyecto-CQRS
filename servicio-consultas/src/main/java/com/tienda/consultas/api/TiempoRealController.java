@@ -25,6 +25,10 @@ public class TiempoRealController {
         this.notificador = notificador;
     }
 
+    /**
+     * GET /api/stream. The token is optional (null for visitors).
+     * @return an open SSE connection that receives the events this user may see
+     */
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter suscribir(@AuthenticationPrincipal Jwt token) {
         if (token == null) {

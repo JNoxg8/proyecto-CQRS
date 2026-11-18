@@ -23,6 +23,10 @@ public class CatalogoController {
         this.catalogo = catalogo;
     }
 
+    /**
+     * GET /api/catalogo (public). Every filter is optional.
+     * @return the matching shoes sorted by brand, model and size
+     */
     @GetMapping
     public List<CalzadoVista> buscar(@RequestParam(required = false) String marca,
                                      @RequestParam(required = false) String categoria,
@@ -32,6 +36,7 @@ public class CatalogoController {
         return consultas.buscar(marca, categoria, talla, precioMax, soloDisponibles);
     }
 
+    /** GET /api/catalogo/{id} (public). 404 if it does not exist in the read model. */
     @GetMapping("/{id}")
     public CalzadoVista porId(@PathVariable Long id) {
         return catalogo.findById(id)

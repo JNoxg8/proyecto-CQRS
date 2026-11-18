@@ -27,6 +27,7 @@ public record CalzadoVista(
         boolean disponible,                   // pre-computed for the clients: stock > 0
         Instant actualizadoEn) {
 
+    /** Builds the document from the event (the event carries the full state). */
     public static CalzadoVista desde(CalzadoEvento evento) {
         return new CalzadoVista(evento.calzadoId(), evento.marca(), evento.modelo(), evento.categoria(),
                 evento.talla(), evento.color(), evento.precio(), evento.stock(), evento.stock() > 0,

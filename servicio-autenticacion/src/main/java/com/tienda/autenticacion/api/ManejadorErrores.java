@@ -21,16 +21,19 @@ import java.util.Map;
 @RestControllerAdvice
 public class ManejadorErrores extends ResponseEntityExceptionHandler {
 
+    /** Wrong e-mail or password -> 401 (same message for both cases). */
     @ExceptionHandler(CredencialesInvalidasException.class)
     public ProblemDetail credencialesInvalidas(CredencialesInvalidasException ex) {
         return problema(HttpStatus.UNAUTHORIZED, "No autenticado", ex.getMessage());
     }
 
+    /** E-mail already registered -> 409 Conflict. */
     @ExceptionHandler(CorreoYaRegistradoException.class)
     public ProblemDetail correoRepetido(CorreoYaRegistradoException ex) {
         return problema(HttpStatus.CONFLICT, "Cuenta existente", ex.getMessage());
     }
 
+    /** Bean Validation errors -> 400 with one message per field in the "errores" property. */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex, HttpHeaders headers,
                                                                   HttpStatusCode status, WebRequest request) {

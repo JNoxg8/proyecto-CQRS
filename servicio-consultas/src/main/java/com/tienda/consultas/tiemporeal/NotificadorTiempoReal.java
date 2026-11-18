@@ -36,6 +36,11 @@ public class NotificadorTiempoReal {
 
     private final List<Suscriptor> suscriptores = new CopyOnWriteArrayList<>();
 
+    /**
+     * Registers a new browser connection.
+     * @param email the user of the token, or null for an anonymous visitor
+     * @param esAdmin true if the token has the ADMIN role
+     */
     public SseEmitter suscribir(String email, boolean esAdmin) {
         SseEmitter emisor = new SseEmitter(TIMEOUT);
         Suscriptor suscriptor = new Suscriptor(emisor, email, esAdmin);

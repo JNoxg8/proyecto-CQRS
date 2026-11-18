@@ -14,11 +14,13 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class TopicosKafkaConfig {
 
+    /** Topic calzado-eventos (created on startup if it does not exist). */
     @Bean
     public NewTopic topicoCalzados() {
         return TopicBuilder.name(Topicos.CALZADOS).partitions(3).replicas(1).build();
     }
 
+    /** Topic pedido-eventos (created on startup if it does not exist). */
     @Bean
     public NewTopic topicoPedidos() {
         return TopicBuilder.name(Topicos.PEDIDOS).partitions(3).replicas(1).build();

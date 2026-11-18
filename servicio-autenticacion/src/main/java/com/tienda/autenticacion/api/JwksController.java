@@ -20,6 +20,10 @@ public class JwksController {
         this.claveRsa = claveRsa;
     }
 
+    /**
+     * GET /.well-known/jwks.json
+     * @return {"keys": [ {kty, e, n, kid, ...} ]}: the public RSA key, never the private part
+     */
     @GetMapping("/.well-known/jwks.json")
     public Map<String, Object> jwks() {
         return new JWKSet(claveRsa.toPublicJWK()).toJSONObject();

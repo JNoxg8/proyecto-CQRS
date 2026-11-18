@@ -28,12 +28,14 @@ public class PedidoComandoController {
         return new RespuestaComando(id, "Pedido #" + id + " creado");
     }
 
+    /** POST /api/pedidos/{id}/despachar (ADMIN). Only orders in state CREADO can be shipped (409 otherwise). */
     @PostMapping("/{id}/despachar")
     public RespuestaComando despachar(@PathVariable Long id) {
         servicio.despachar(id);
         return new RespuestaComando(id, "Pedido #" + id + " despachado");
     }
 
+    /** POST /api/pedidos/{id}/cancelar (CLIENTE: own orders only, ADMIN: any). Returns the units to the stock. */
     @PostMapping("/{id}/cancelar")
     public RespuestaComando cancelar(@PathVariable Long id, @AuthenticationPrincipal Jwt token) {
         servicio.cancelar(id, UsuarioActual.desde(token));

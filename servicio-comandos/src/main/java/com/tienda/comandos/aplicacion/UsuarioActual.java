@@ -10,6 +10,7 @@ import java.util.List;
  */
 public record UsuarioActual(String email, String nombre, boolean esAdmin) {
 
+    /** Builds the user from the claims "sub" (e-mail), "nombre" and "roles". */
     public static UsuarioActual desde(Jwt token) {
         List<String> roles = token.getClaimAsStringList("roles");
         return new UsuarioActual(token.getSubject(), token.getClaimAsString("nombre"),

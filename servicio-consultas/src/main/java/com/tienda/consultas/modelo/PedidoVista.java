@@ -29,6 +29,7 @@ public record PedidoVista(
         Instant creadoEn,
         Instant actualizadoEn) {
 
+    /** Builds the denormalized document from the event. */
     public static PedidoVista desde(PedidoEvento evento) {
         return new PedidoVista(evento.pedidoId(), evento.calzadoId(), evento.descripcionCalzado(),
                 evento.cantidad(), evento.precioUnitario(), evento.total(), evento.clienteNombre(),

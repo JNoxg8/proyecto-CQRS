@@ -15,6 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
+/**
+ * Use cases of the identity provider: register a customer and verify credentials.
+ * Passwords are only compared through the {@link PasswordEncoder} (BCrypt), never in plain text.
+ */
 @Service
 public class AutenticacionServicio {
 
@@ -43,6 +47,10 @@ public class AutenticacionServicio {
         return tokens.emitir(nuevo);   // signing up also logs you in
     }
 
+    /**
+     * Verifies the credentials and issues a token.
+     * @throws CredencialesInvalidasException if the e-mail does not exist or the password does not match
+     */
     @Transactional(readOnly = true)
     public RespuestaSesion iniciarSesion(LoginSolicitud solicitud) {
         Optional<Usuario> usuario = usuarios.findByEmail(normalizar(solicitud.email()));

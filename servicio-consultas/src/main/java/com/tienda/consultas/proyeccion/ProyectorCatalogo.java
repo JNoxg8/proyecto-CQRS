@@ -32,6 +32,7 @@ public class ProyectorCatalogo extends AbstractConsumerSeekAware {
         this.tiempoReal = tiempoReal;
     }
 
+    /** Consumer group "consultas-catalogo": upserts the shoe and pushes it to every browser. */
     @KafkaListener(topics = Topicos.CALZADOS, groupId = "consultas-catalogo")
     public void proyectar(CalzadoEvento evento) {
         catalogo.save(CalzadoVista.desde(evento));

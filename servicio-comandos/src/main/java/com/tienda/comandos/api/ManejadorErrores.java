@@ -27,16 +27,19 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class ManejadorErrores extends ResponseEntityExceptionHandler {
 
+    /** Shoe or order not found -> 404. */
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ProblemDetail noEncontrado(RecursoNoEncontradoException ex) {
         return problema(HttpStatus.NOT_FOUND, "Recurso no encontrado", ex.getMessage());
     }
 
+    /** Business rule violated (e.g. not enough stock) -> 409. */
     @ExceptionHandler(ReglaNegocioException.class)
     public ProblemDetail reglaNegocio(ReglaNegocioException ex) {
         return problema(HttpStatus.CONFLICT, "Regla de negocio", ex.getMessage());
     }
 
+    /** Authenticated but not the owner (e.g. cancelling another customer's order) -> 403. */
     @ExceptionHandler(AccesoDenegadoException.class)
     public ProblemDetail accesoDenegado(AccesoDenegadoException ex) {
         return problema(HttpStatus.FORBIDDEN, "Acceso denegado", ex.getMessage());

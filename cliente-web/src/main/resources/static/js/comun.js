@@ -38,18 +38,21 @@ function obtenerSesion() {
   }
 }
 
+/** Stores the session returned by servicio-autenticacion (login / sign-up). */
 function guardarSesion(sesion) {
   try {
     sessionStorage.setItem(CLAVE_SESION, JSON.stringify(sesion));
   } catch { /* storage blocked: the user will have to log in again on each page */ }
 }
 
+/** Logs out locally (the token is simply forgotten; it expires by itself). */
 function cerrarSesion() {
   try {
     sessionStorage.removeItem(CLAVE_SESION);
   } catch { /* ignore */ }
 }
 
+/** true if the session belongs to an administrator (only for the UI). */
 const esAdmin = (sesion) => sesion?.rol === 'ADMIN';
 
 /** Goes to the login page and comes back to the current page afterwards. */
@@ -60,6 +63,7 @@ function irALogin(motivo) {
   location.href = 'login.html?' + parametros;
 }
 
+/** {Authorization: "Bearer <token>"} if there is a session, {} otherwise. */
 function cabeceraAutorizacion() {
   const sesion = obtenerSesion();
   return sesion ? { Authorization: 'Bearer ' + sesion.token } : {};
@@ -183,6 +187,7 @@ function registrarActividad(nombre, evento) {
   while (lista.children.length > 40) lista.lastElementChild.remove();
 }
 
+/** One-line, human readable summary of an event for the activity panel. */
 function describirEvento(nombre, e) {
   switch (nombre) {
     case 'calzado':
@@ -206,8 +211,11 @@ function escapar(texto) {
 }
 
 const formatoPesos = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
+/** Formats a price as Colombian pesos, e.g. "$ 459.900". */
 const pesos = (valor) => formatoPesos.format(Number(valor));
+/** Shows a size with a decimal comma, e.g. 40.5 -> "40,5". */
 const talla = (t) => String(t).replace('.', ',');
+/** Formats an ISO-8601 date as a short local date and time. */
 const fecha = (iso) => new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
 
 /** Groups many calls in a short time into one (e.g. 50 replayed events -> 1 reload). */
@@ -230,6 +238,7 @@ function avisar(mensaje, tipo = 'info') {
   setTimeout(() => aviso.remove(), tipo === 'error' ? 9000 : 7000);
 }
 
+/** Coloured label for an order state (CREADO, DESPACHADO, CANCELADO). */
 function etiquetaEstado(estado) {
   return `<span class="estado ${escapar(estado).toLowerCase()}">${escapar(estado)}</span>`;
 }

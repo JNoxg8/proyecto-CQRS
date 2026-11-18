@@ -50,6 +50,10 @@ public class Calzado {
         // required by JPA
     }
 
+    /**
+     * Creates a shoe.
+     * @throws ReglaNegocioException if the initial stock is negative or the price is not positive
+     */
     public Calzado(String marca, String modelo, String categoria, double talla,
                    String color, BigDecimal precio, int stockInicial) {
         if (stockInicial < 0) {
@@ -66,6 +70,7 @@ public class Calzado {
 
     // ---------- business rules ----------
 
+    /** Rule: the price must be greater than zero. */
     public void cambiarPrecio(BigDecimal nuevoPrecio) {
         if (nuevoPrecio == null || nuevoPrecio.signum() <= 0) {
             throw new ReglaNegocioException("El precio debe ser mayor que cero");
@@ -73,6 +78,7 @@ public class Calzado {
         this.precio = nuevoPrecio;
     }
 
+    /** Rule: only positive quantities can be added. */
     public void reponerStock(int cantidad) {
         if (cantidad <= 0) {
             throw new ReglaNegocioException("La cantidad a reponer debe ser mayor que cero");
@@ -80,6 +86,10 @@ public class Calzado {
         this.stock += cantidad;
     }
 
+    /**
+     * Rule: the stock can never become negative (no overselling).
+     * @throws ReglaNegocioException if there are fewer units than requested
+     */
     public void descontarStock(int cantidad) {
         if (cantidad <= 0) {
             throw new ReglaNegocioException("La cantidad debe ser mayor que cero");

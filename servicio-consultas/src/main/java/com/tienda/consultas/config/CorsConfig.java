@@ -15,6 +15,7 @@ public class CorsConfig implements WebMvcConfigurer {
         this.origenes = origenes;
     }
 
+    /** Allows GET (queries, stream) and POST (rebuild) from the client apps. */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")

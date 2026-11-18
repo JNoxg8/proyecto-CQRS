@@ -22,6 +22,10 @@ public class CatalogoConsultas {
         this.mongo = mongo;
     }
 
+    /**
+     * Builds the Mongo query only with the filters that were sent (null/blank filters are ignored).
+     * The fields marca and categoria are indexed, so filtering by them avoids a full collection scan.
+     */
     public List<CalzadoVista> buscar(String marca, String categoria, Double talla, BigDecimal precioMax,
                                      boolean soloDisponibles) {
         Query consulta = new Query();

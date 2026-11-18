@@ -33,6 +33,10 @@ public class Usuario {
         // required by JPA
     }
 
+    /**
+     * Creates an account.
+     * @param passwordHash the BCrypt hash, never the plain password
+     */
     public Usuario(String nombre, String email, String passwordHash, Rol rol) {
         this.nombre = nombre;
         this.email = email;

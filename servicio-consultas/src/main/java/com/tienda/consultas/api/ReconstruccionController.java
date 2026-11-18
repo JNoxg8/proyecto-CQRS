@@ -42,6 +42,10 @@ public class ReconstruccionController {
         this.tiempoReal = tiempoReal;
     }
 
+    /**
+     * POST /api/admin/reconstruir (ADMIN) -> 202 Accepted. Empties both collections and rewinds
+     * the projectors to offset 0; the documents reappear as the events are consumed again.
+     */
     @PostMapping("/reconstruir")
     @ResponseStatus(HttpStatus.ACCEPTED)   // 202: accepted, it finishes asynchronously while the events are replayed
     public Map<String, String> reconstruir() {

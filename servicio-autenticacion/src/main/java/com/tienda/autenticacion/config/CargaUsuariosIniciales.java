@@ -28,6 +28,7 @@ public class CargaUsuariosIniciales implements CommandLineRunner {
         this.iniciales = iniciales;
     }
 
+    /** Runs once at startup, after the Spring context is ready. */
     @Override
     public void run(String... args) {
         crearSiNoExiste(iniciales.admin(), Rol.ADMIN);

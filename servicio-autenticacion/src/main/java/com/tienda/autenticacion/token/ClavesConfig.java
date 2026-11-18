@@ -33,6 +33,7 @@ import java.util.UUID;
 @Configuration
 public class ClavesConfig {
 
+    /** Generates the 2048-bit RSA pair and gives it a random key id ("kid"). */
     @Bean
     public RSAKey claveRsa() throws NoSuchAlgorithmException {
         KeyPairGenerator generador = KeyPairGenerator.getInstance("RSA");
@@ -44,6 +45,7 @@ public class ClavesConfig {
                 .build();
     }
 
+    /** Encoder that signs the tokens with the private key (used by TokenServicio). */
     @Bean
     public JwtEncoder jwtEncoder(RSAKey claveRsa) {
         JWKSource<SecurityContext> fuente = new ImmutableJWKSet<>(new JWKSet(claveRsa));

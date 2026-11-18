@@ -16,6 +16,7 @@ public class ManejadorDesconexiones {
 
     private static final Logger log = LoggerFactory.getLogger(ManejadorDesconexiones.class);
 
+    /** Logs the disconnection at DEBUG level and does nothing else. */
     @ExceptionHandler(IOException.class)
     public void clienteDesconectado(IOException ex) {
         log.debug("Un navegador cerró su conexión en vivo: {}", ex.getMessage());

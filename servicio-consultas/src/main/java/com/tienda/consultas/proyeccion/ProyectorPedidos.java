@@ -25,6 +25,7 @@ public class ProyectorPedidos extends AbstractConsumerSeekAware {
         this.tiempoReal = tiempoReal;
     }
 
+    /** Consumer group "consultas-pedidos": upserts the order and pushes it to its owner and the admins. */
     @KafkaListener(topics = Topicos.PEDIDOS, groupId = "consultas-pedidos")
     public void proyectar(PedidoEvento evento) {
         pedidos.save(PedidoVista.desde(evento));

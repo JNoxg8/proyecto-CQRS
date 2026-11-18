@@ -19,6 +19,10 @@ public class CalzadoComandoController {
         this.servicio = servicio;
     }
 
+    /**
+     * POST /api/calzados -> 201. Registers a new shoe (ADMIN).
+     * @return the new id; the data itself will appear in the catalog when the event is projected
+     */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public RespuestaComando registrar(@Valid @RequestBody RegistrarCalzadoComando comando) {
@@ -26,12 +30,14 @@ public class CalzadoComandoController {
         return new RespuestaComando(id, "Calzado #" + id + " registrado");
     }
 
+    /** PUT /api/calzados/{id}/precio (ADMIN). 404 if the shoe does not exist, 409 if the price is not positive. */
     @PutMapping("/{id}/precio")
     public RespuestaComando cambiarPrecio(@PathVariable Long id, @Valid @RequestBody CambiarPrecioComando comando) {
         servicio.cambiarPrecio(id, comando);
         return new RespuestaComando(id, "Precio del calzado #" + id + " actualizado");
     }
 
+    /** POST /api/calzados/{id}/reponer-stock (ADMIN). Adds units to the stock. */
     @PostMapping("/{id}/reponer-stock")
     public RespuestaComando reponerStock(@PathVariable Long id, @Valid @RequestBody ReponerStockComando comando) {
         servicio.reponerStock(id, comando);

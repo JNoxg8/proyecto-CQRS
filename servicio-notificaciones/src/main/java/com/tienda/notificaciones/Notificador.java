@@ -22,6 +22,7 @@ public class Notificador {
     private static final Logger log = LoggerFactory.getLogger(Notificador.class);
     private static final int STOCK_BAJO = 2;
 
+    /** Simulates the e-mail that the customer would receive for each order change. */
     @KafkaListener(topics = Topicos.PEDIDOS, groupId = "notificaciones")
     public void alCambiarPedido(PedidoEvento e) {
         String mensaje = switch (e.tipo()) {
@@ -33,6 +34,7 @@ public class Notificador {
         log.info("[CORREO SIMULADO] Para: {} | {}", e.clienteEmail(), mensaje);
     }
 
+    /** Warns the store when a shoe runs out or has {@value #STOCK_BAJO} units or fewer. */
     @KafkaListener(topics = Topicos.CALZADOS, groupId = "notificaciones")
     public void alCambiarCalzado(CalzadoEvento e) {
         String calzado = e.marca() + " " + e.modelo() + " (#" + e.calzadoId() + ")";

@@ -21,6 +21,7 @@ let ultimoCambio = { calzado: null, pedido: null };   // to flash the row that c
 
 // ---------------------------------------------------------------- queries
 
+/** Reads the whole inventory from the read side. */
 async function cargarInventario() {
   try {
     inventario = await consultar('/catalogo');
@@ -31,6 +32,7 @@ async function cargarInventario() {
   pintarResumen();
 }
 
+/** Reads every order (GET /pedidos, ADMIN only). */
 async function cargarPedidos() {
   try {
     pedidos = await consultar('/pedidos');
@@ -41,6 +43,7 @@ async function cargarPedidos() {
   pintarResumen();
 }
 
+/** Updates the summary cards: orders, sales (without cancelled orders), units and sold-out shoes. */
 function pintarResumen() {
   const validos = pedidos.filter((p) => p.estado !== 'CANCELADO');
   $('#r-pedidos').textContent = pedidos.length;
@@ -49,6 +52,7 @@ function pintarResumen() {
   $('#r-agotados').textContent = inventario.filter((c) => c.stock === 0).length;
 }
 
+/** Draws the inventory table with the change-price and restock controls. */
 function pintarInventario() {
   if (inventario.length === 0) {
     $('#inventario').innerHTML = '<tr><td colspan="6" class="vacio">No hay calzado registrado.</td></tr>';
@@ -79,6 +83,7 @@ function pintarInventario() {
   ultimoCambio.calzado = null;
 }
 
+/** Draws the orders table with the ship / cancel buttons for CREADO orders. */
 function pintarPedidos() {
   if (pedidos.length === 0) {
     $('#pedidos').innerHTML = '<tr><td colspan="8" class="vacio">Todavía no hay pedidos.</td></tr>';

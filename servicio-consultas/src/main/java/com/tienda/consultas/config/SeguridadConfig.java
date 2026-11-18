@@ -29,6 +29,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SeguridadConfig {
 
+    /** Permission rules of the read side (see the table above). */
     @Bean
     public SecurityFilterChain filtroSeguridad(HttpSecurity http) throws Exception {
         return http
@@ -64,6 +65,7 @@ public class SeguridadConfig {
                 : soloCabecera.resolve(peticion);
     }
 
+    /** Reads the "roles" claim of the token (["ADMIN"]) as Spring authorities ("ROLE_ADMIN"). */
     @Bean
     public JwtAuthenticationConverter rolesDelToken() {
         JwtGrantedAuthoritiesConverter roles = new JwtGrantedAuthoritiesConverter();

@@ -45,6 +45,10 @@ public class PedidoServicio {
         return pedido.getId();
     }
 
+    /**
+     * Marks the order as shipped and announces PEDIDO_DESPACHADO.
+     * @throws ReglaNegocioException if the order is not in state CREADO
+     */
     @Transactional
     public void despachar(Long pedidoId) {
         Pedido pedido = buscar(pedidoId);

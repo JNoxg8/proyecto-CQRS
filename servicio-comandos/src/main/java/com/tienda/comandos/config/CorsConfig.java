@@ -18,6 +18,7 @@ public class CorsConfig implements WebMvcConfigurer {
         this.origenes = origenes;
     }
 
+    /** The write side only receives POST and PUT. */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+/** Body of POST /api/auth/registro. There is no "rol" field: sign-up always creates a CLIENTE. */
 public record RegistroSolicitud(
         @NotBlank(message = "El nombre es obligatorio") @Size(max = 80) String nombre,
         @NotBlank(message = "El correo es obligatorio")

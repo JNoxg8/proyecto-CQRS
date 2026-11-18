@@ -36,6 +36,11 @@ public class TokenServicio {
         this.duracion = duracion;
     }
 
+    /**
+     * Issues a signed JWT for the user, valid for {@code tienda.token.duracion} (2 hours by default).
+     * @param usuario an authenticated account
+     * @return the token plus the data the client shows (name, e-mail, role, expiration)
+     */
     public RespuestaSesion emitir(Usuario usuario) {
         Instant ahora = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         Instant expira = ahora.plus(duracion);

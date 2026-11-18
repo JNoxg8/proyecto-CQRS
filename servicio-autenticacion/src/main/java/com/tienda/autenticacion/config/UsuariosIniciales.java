@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "tienda.usuarios-iniciales")
 public record UsuariosIniciales(Cuenta admin, Cuenta cliente) {
 
+    /** One demo account: display name, e-mail and plain password (hashed before saving). */
     public record Cuenta(String nombre, String email, String password) {
     }
 }

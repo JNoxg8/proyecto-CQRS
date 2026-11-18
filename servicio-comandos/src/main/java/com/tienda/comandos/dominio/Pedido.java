@@ -72,6 +72,7 @@ public class Pedido {
         return pedido;
     }
 
+    /** CREADO -> DESPACHADO. */
     public void despachar() {
         exigirEstadoCreado("despachar");
         this.estado = EstadoPedido.DESPACHADO;
@@ -84,6 +85,7 @@ public class Pedido {
         calzado.devolverStock(cantidad);
     }
 
+    /** @return true if the order was placed by this e-mail (case-insensitive) */
     public boolean perteneceA(String email) {
         return clienteEmail.equalsIgnoreCase(email);
     }

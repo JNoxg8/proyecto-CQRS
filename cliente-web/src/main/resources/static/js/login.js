@@ -26,6 +26,10 @@ function destino(sesion) {
   return esAdmin(sesion) ? 'admin.html' : 'tienda.html';
 }
 
+/**
+ * POST to servicio-autenticacion.
+ * @returns {Promise<{token, tipo, expiraEn, nombre, email, rol}>}
+ */
 async function autenticar(ruta, cuerpo) {
   let respuesta;
   try {
@@ -44,6 +48,7 @@ async function autenticar(ruta, cuerpo) {
   return datos;   // {token, tipo, expiraEn, nombre, email, rol}
 }
 
+/** On submit: authenticate, store the session and go to the right page. */
 function conectarFormulario(selector, ruta) {
   const formulario = $(selector);
   formulario.addEventListener('submit', async (e) => {

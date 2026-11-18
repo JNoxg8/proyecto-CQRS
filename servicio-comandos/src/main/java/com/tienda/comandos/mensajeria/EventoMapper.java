@@ -15,11 +15,13 @@ public final class EventoMapper {
     private EventoMapper() {
     }
 
+    /** Snapshot of the shoe after the change, labelled with what happened. */
     public static CalzadoEvento deCalzado(TipoEventoCalzado tipo, Calzado c) {
         return new CalzadoEvento(tipo, c.getId(), c.getMarca(), c.getModelo(), c.getCategoria(),
                 c.getTalla(), c.getColor(), c.getPrecio(), c.getStock(), Instant.now());
     }
 
+    /** Snapshot of the order, including a copy of the shoe description. */
     public static PedidoEvento dePedido(TipoEventoPedido tipo, Pedido p) {
         Calzado c = p.getCalzado();
         return new PedidoEvento(tipo, p.getId(), c.getId(), c.descripcion(), p.getCantidad(),

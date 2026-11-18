@@ -30,6 +30,7 @@ public class DatosIniciales implements CommandLineRunner {
         this.servicio = servicio;
     }
 
+    /** Registers 7 sample shoes, only if the table is empty. */
     @Override
     public void run(String... args) {
         if (calzados.count() > 0) {

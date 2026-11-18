@@ -13,6 +13,7 @@ $('#enlace-admin').hidden = !esAdmin(sesion);
 
 let ultimoCalzadoCambiado = null;   // to flash the card that changed
 
+/** Reads the catalog (public query) applying the filters of the form. */
 async function cargarCatalogo() {
   const filtros = new URLSearchParams();
   if ($('#f-marca').value) filtros.set('marca', $('#f-marca').value);
@@ -48,6 +49,7 @@ function llenarOpciones(calzados) {
   }
 }
 
+/** Draws one card per shoe. Without a session the button invites to log in. */
 function pintarCatalogo(calzados) {
   if (calzados.length === 0) {
     $('#catalogo').innerHTML = '<p class="vacio">No hay calzado con esos filtros.</p>';
@@ -110,6 +112,7 @@ $('#catalogo').addEventListener('click', async (e) => {
   }
 });
 
+/** Shows how long the order took to travel PostgreSQL -> Kafka -> MongoDB (eventual consistency). */
 function informarConsistencia(pedidoId, milisegundos) {
   avisar(`✓ Pedido #${pedidoId} ya está en MongoDB (servicio de consultas), ${Math.max(0, Math.round(milisegundos))} ms `
     + 'después de guardarse en PostgreSQL. Eso es la consistencia eventual.', 'exito');
@@ -117,6 +120,7 @@ function informarConsistencia(pedidoId, milisegundos) {
 
 // ---------------------------------------------------------------- my orders (query, requires login)
 
+/** Loads the orders of the logged-in user (GET /pedidos/mios). */
 async function cargarMisPedidos() {
   if (!sesion) {
     $('#mis-pedidos').innerHTML = '<p class="vacio"><a href="#" id="login-pedidos">Inicia sesión</a> para comprar y ver tus pedidos.</p>';
@@ -130,6 +134,7 @@ async function cargarMisPedidos() {
   }
 }
 
+/** Draws the "Mis pedidos" table; only CREADO orders can be cancelled. */
 function pintarMisPedidos(pedidos) {
   if (pedidos.length === 0) {
     $('#mis-pedidos').innerHTML = '<p class="vacio">Todavía no tienes pedidos.</p>';
