@@ -7,7 +7,9 @@
 ![MongoDB](https://img.shields.io/badge/MongoDB-lectura-47A248)
 ![Pruebas](https://img.shields.io/badge/pruebas-35%20JUnit-blue)
 
-Proyecto académico
+Proyecto académico — **Universidad Central**.
+
+**Integrantes:** Juan Pablo Garcia · Kevin Estupinan Sotelo
 
 La solución es una tienda de calzado en línea:
 
@@ -131,7 +133,7 @@ la **consistencia eventual** (*eventual consistency*) y la tienda muestra cuánt
 |---|:-:|:-:|:-:|
 | Ver catálogo (y sus cambios en vivo) | ✅ | ✅ | ✅ |
 | Comprar | ❌ 401 | ✅ | ✅ |
-| Ver mis pedidos / recibirlos en vivo | ❌ 401 | ✅ solo los suyos | ✅ |
+| Ver los pedidos propios / recibirlos en vivo | ❌ 401 | ✅ solo los suyos | ✅ |
 | Cancelar un pedido | ❌ 401 | ✅ solo los suyos (si no, 403) | ✅ cualquiera |
 | Ver todos los pedidos | ❌ 401 | ❌ 403 | ✅ |
 | Registrar calzado, cambiar precio, reponer stock | ❌ 401 | ❌ 403 | ✅ |
@@ -139,8 +141,8 @@ la **consistencia eventual** (*eventual consistency*) y la tienda muestra cuánt
 | Reconstruir el modelo de lectura | ❌ 401 | ❌ 403 | ✅ |
 | Abrir `admin.html` | → login | → login | ✅ |
 
-- **401 Unauthorized** = no sé quién eres (sin token, vencido o alterado).
-- **403 Forbidden** = sé quién eres, pero no tienes permiso.
+- **401 Unauthorized** = el servidor no identifica al usuario (token ausente, vencido o alterado).
+- **403 Forbidden** = el usuario está identificado, pero no tiene permiso.
 - La protección real está en las **APIs** (`SeguridadConfig` de cada servicio). Que el navegador oculte el panel de
   admin es solo comodidad: cualquiera podría llamar a la API con curl o Talend.
 - Registrarse siempre crea un **CLIENTE**. Los administradores solo se crean desde la configuración del servidor.
@@ -164,18 +166,18 @@ la **consistencia eventual** (*eventual consistency*) y la tienda muestra cuánt
 
 Requisitos: Git, Docker Desktop encendido y **JDK 21** (Maven no hace falta: el proyecto trae `mvnw`).
 
-1. Descarga el proyecto y levanta la infraestructura (PostgreSQL, MongoDB, Kafka y Kafka UI):
+1. Se clona el proyecto y se levanta la infraestructura (PostgreSQL, MongoDB, Kafka y Kafka UI):
    ```powershell
    git clone https://github.com/JNoxg8/proyecto-CQRS.git
    cd proyecto-CQRS
    docker compose up -d
    ```
-   La primera vez, `docker/postgres-init/01-bases.sql` crea la base `tienda_usuarios`. Si tu volumen de Postgres
-   ya existía antes de agregar la autenticación, créala una vez a mano:
+   La primera vez, `docker/postgres-init/01-bases.sql` crea la base `tienda_usuarios`. Si el volumen de Postgres
+   ya existía antes de agregar la autenticación, la base se crea una sola vez de forma manual:
    ```powershell
    docker exec tienda-postgres psql -U tienda -d tienda_comandos -c "CREATE DATABASE tienda_usuarios OWNER tienda;"
    ```
-2. En IntelliJ: **File → Open** esta carpeta (proyecto Maven), SDK = JDK 21, y ejecuta
+2. En IntelliJ: **File → Open** esta carpeta (proyecto Maven), SDK = JDK 21, y se ejecuta
    **`Tienda: TODO (servidor + clientes)`** (o cada servicio del 1 al 5).
 
    Sin IntelliJ:
@@ -187,7 +189,7 @@ Requisitos: Git, Docker Desktop encendido y **JDK 21** (Maven no hace falta: el 
    java -jar servicio-notificaciones\target\servicio-notificaciones-1.0.0.jar
    java -jar cliente-web\target\cliente-web-1.0.0.jar
    ```
-3. Abre <http://localhost:8080> (la tienda). El panel de admin está en <http://localhost:8080/admin.html> y pide
+3. Se abre <http://localhost:8080> (la tienda). El panel de admin está en <http://localhost:8080/admin.html> y pide
    iniciar sesión como ADMIN. Kafka UI: <http://localhost:8090>.
 
 | Recurso | Dirección | Credenciales |
@@ -227,16 +229,16 @@ Requisitos: Git, Docker Desktop encendido y **JDK 21** (Maven no hace falta: el 
 |---|---|---|---|
 | GET | `/api/catalogo?marca=&categoria=&talla=&precioMax=&soloDisponibles=` | Catálogo filtrado | público |
 | GET | `/api/catalogo/{id}` | Un calzado | público |
-| GET | `/api/stream` | Canal en vivo (SSE), filtrado según quién eres | público / con token |
-| GET | `/api/pedidos/mios` | Mis pedidos | autenticado |
+| GET | `/api/stream` | Canal en vivo (SSE), filtrado según el usuario | público / con token |
+| GET | `/api/pedidos/mios` | Pedidos del usuario autenticado | autenticado |
 | GET | `/api/pedidos`, `/api/pedidos/{id}` | Todos los pedidos / uno | ADMIN |
 | POST | `/api/admin/reconstruir` | Borra MongoDB y reproduce todos los eventos de Kafka | ADMIN |
 
 Errores con formato *Problem Details* (RFC 7807): `400` datos inválidos, `401` no autenticado, `403` sin permiso,
 `404` no existe, `409` regla de negocio o conflicto de concurrencia.
 
-Pruebas listas en `requests.http` (IntelliJ: guarda los tokens solo) y `tienda_talend_collection.json`
-(Talend: haz el login, copia el `token` y pégalo en la cabecera `Authorization` de las demás peticiones).
+Pruebas listas en `requests.http` (IntelliJ guarda los tokens automáticamente) y `tienda_talend_collection.json`
+(en Talend se ejecuta el login y el `token` obtenido se copia en la cabecera `Authorization` de las demás peticiones).
 
 ## Eventos
 
@@ -251,18 +253,18 @@ pedido (con nombre y correo) solo llega al ADMIN y al dueño del pedido.
 
 ## Guion de demostración (6 minutos)
 
-1. Abre la **Tienda** sin iniciar sesión: el catálogo se ve, pero comprar pide iniciar sesión.
-2. Intenta abrir `admin.html`: te lleva al login con el aviso "solo para administradores".
-3. En una ventana inicia sesión como **cliente**; en otra ventana (o pestaña), como **admin**. Ten a la vista la
-   consola de `servicio-notificaciones`.
-4. Compra como cliente. Observa:
+1. Se abre la **Tienda** sin iniciar sesión: el catálogo se ve, pero comprar pide iniciar sesión.
+2. Al intentar abrir `admin.html`, el sistema redirige al login con el aviso "solo para administradores".
+3. Se inicia sesión como **cliente** en una ventana y como **admin** en otra (o en otra pestaña), con la
+   consola de `servicio-notificaciones` a la vista.
+4. Se realiza una compra como cliente. Se observa:
    - el aviso "*Pedido #N ya está en MongoDB X ms después*" → **consistencia eventual**;
    - el Admin se actualiza solo (SSE) y aparece el `[CORREO SIMULADO]` → **pub/sub**.
-5. Crea una segunda cuenta de cliente y compra: el primer cliente **no** ve ese pedido (ni en la tabla ni en vivo).
-6. Desde Talend, con el token del cliente, intenta registrar un calzado → **403**; sin token → **401**.
-7. En el Admin **cambia un precio**: los pedidos viejos conservan su precio (**modelo desnormalizado**).
-8. Pulsa **Reconstruir modelo de lectura**: MongoDB se vacía y se reconstruye desde Kafka (**event replay**).
-9. Muestra en pgAdmin `tienda_usuarios.usuarios`: las contraseñas están como hash BCrypt (`$2a$10$...`).
+5. Se crea una segunda cuenta de cliente y se realiza una compra: el primer cliente **no** ve ese pedido (ni en la tabla ni en vivo).
+6. Desde Talend, con el token del cliente, se intenta registrar un calzado → **403**; sin token → **401**.
+7. En el Admin se **cambia un precio**: los pedidos viejos conservan su precio (**modelo desnormalizado**).
+8. Se pulsa **Reconstruir modelo de lectura**: MongoDB se vacía y se reconstruye desde Kafka (**event replay**).
+9. En pgAdmin, en `tienda_usuarios.usuarios`, se verifica que las contraseñas están como hash BCrypt (`$2a$10$...`).
 
 ## Decisiones de diseño
 
