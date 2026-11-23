@@ -5,76 +5,109 @@
 ![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-3.8-231F20)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-escritura-336791)
 ![MongoDB](https://img.shields.io/badge/MongoDB-lectura-47A248)
-![Pruebas](https://img.shields.io/badge/pruebas-38%20JUnit-blue)
+![Pruebas](https://img.shields.io/badge/pruebas-38%20automáticas-blue)
 
 Proyecto académico — **Universidad Central**.
 
 **Integrantes:** Juan Pablo Garcia · Kevin Estupinan Sotelo
 
-La solución es una tienda de calzado en línea:
+## ¿Qué es este proyecto?
 
-- **Pila de mensajería:** Apache Kafka, con dos tópicos de eventos.
-- **CQRS** (*Command Query Responsibility Segregation*): la escritura (PostgreSQL) y la lectura (MongoDB) son
-  servicios y bases de datos distintos, sincronizados por eventos.
-- **Aplicación servidor:** 4 microservicios Spring Boot (autenticación, comandos, consultas y notificaciones).
-- **Aplicaciones cliente:** Tienda (compradores), Admin (administrador) y Login, en HTML + JavaScript, con
-  actualizaciones en vivo (SSE).
-- **Seguridad:** inicio de sesión con JWT firmado (RS256) y roles: un cliente solo usa la tienda y el administrador
-  tiene acceso total.
-- **Tolerancia a fallos:** *Transactional Outbox*, reintentos con espera exponencial, *Dead Letter Topics*,
-  reconstrucción del modelo de lectura y contenedores con reinicio automático y *healthchecks*.
+Es una **tienda de zapatos en línea**. Los compradores ven el catálogo y compran, y un administrador agrega zapatos,
+cambia precios y despacha los pedidos.
+
+Lo interesante está en **cómo funciona por dentro**: el sistema separa en dos partes el trabajo de **guardar**
+(vender, cambiar un precio) y el de **mostrar** (el catálogo, la lista de pedidos). Cada parte tiene su propia base de
+datos, y se mantienen al día gracias a **avisos** que viajan por un sistema de mensajería llamado **Kafka**.
+
+| Lo que pedía el trabajo | Cómo se resolvió |
+|---|---|
+| Un sistema de mensajería | **Kafka**, que reparte los avisos entre las partes del sistema |
+| El patrón **CQRS** | Una parte que solo **guarda** cambios y otra que solo **muestra** datos, cada una con su base de datos |
+| Una aplicación servidor | 4 programas en Java que trabajan juntos (acceso, escritura, lectura y notificaciones) |
+| Aplicaciones cliente | 3 páginas web: Tienda, Panel de administración e Inicio de sesión, que se actualizan solas |
+
+Además, el proyecto tiene:
+- **Seguridad:** hay que iniciar sesión para comprar, y solo el administrador puede entrar al panel de administración.
+- **Resistencia a fallos:** si una pieza se cae, la tienda sigue vendiendo y no se pierde ninguna venta.
 
 📄 Documentación en Word (carpeta [`docs/`](docs/)):
-- [Documentación del proyecto](docs/Documentacion_Proyecto_CQRS.docx): marco conceptual, arquitectura, modelo de
-  datos, eventos, API, seguridad, pruebas, decisiones de diseño y limitaciones.
+- [Documentación del proyecto](docs/Documentacion_Proyecto_CQRS.docx): el documento completo para el curso.
 - [Guía de ejecución y demostración](docs/Guia_de_ejecucion_y_demostracion.docx): qué hacer paso a paso y dónde se
-  ve reflejado cada paso (consolas, pgAdmin, Compass, Kafka UI y navegador).
+  ve cada resultado.
 
 ## Contenido
 
-- [Arquitectura](#arquitectura)
-- [Flujo de una compra](#flujo-de-una-compra)
-- [Roles y permisos](#roles-y-permisos)
+- [Una comparación: el restaurante](#una-comparación-el-restaurante)
+- [Palabras clave](#palabras-clave)
+- [Cómo funciona](#cómo-funciona)
+- [Una compra, paso a paso](#una-compra-paso-a-paso)
+- [Quién puede hacer qué](#quién-puede-hacer-qué)
+- [Qué pasa si algo falla](#qué-pasa-si-algo-falla)
 - [Cómo ejecutarlo](#cómo-ejecutarlo)
-- [API](#api)
-- [Eventos](#eventos)
-- [Tolerancia a fallos](#tolerancia-a-fallos)
-- [Guion de demostración](#guion-de-demostración-6-minutos)
-- [Decisiones de diseño](#decisiones-de-diseño)
-- [Estructura del repositorio](#estructura-del-repositorio)
-- [Pruebas](#pruebas)
+- [Guion de demostración](#guion-de-demostración)
+- [Detalles técnicos (para desarrolladores)](#detalles-técnicos-para-desarrolladores)
 
-## Arquitectura
+## Una comparación: el restaurante
 
-El diagrama sigue **una compra de arriba hacia abajo**. Los colores separan los dos lados de CQRS:
-🟧 **escritura** (comandos + PostgreSQL) y 🟩 **lectura** (consultas + MongoDB), unidos solo por ⬛ **Kafka**.
+| En un restaurante | En este proyecto |
+|---|---|
+| El mesero toma el pedido y lo anota en la **libreta oficial** | El **servicio de escritura** guarda la venta en la **base de datos principal** |
+| Pega la comanda en la **ventanilla** de la cocina | El aviso se publica en **Kafka** |
+| La cocina, la caja y el bar leen **la misma comanda**, cada uno por su cuenta | Los servicios de **lectura** y de **notificaciones** reciben el mismo aviso |
+| La **pizarra del menú** muestra lo que hay disponible | La **base de datos de lectura** muestra el catálogo |
+| Si la ventanilla está bloqueada, el mesero deja la comanda **marcada como pendiente** y la pega apenas puede | Si Kafka está caído, el aviso queda en una **bandeja de salida** y se envía cuando vuelve |
+
+El mesero no va a la cocina a explicar cada pedido: lo pega y sigue atendiendo. Así, si la cocina se demora, el
+mesero no se detiene. Esa independencia entre partes es la idea central del proyecto.
+
+## Palabras clave
+
+| Palabra | Qué significa, en simple |
+|---|---|
+| **CQRS** | Separar el trabajo de **guardar** cambios del trabajo de **mostrar** datos. Viene del inglés *Command Query Responsibility Segregation*. |
+| **Comando** | Una orden que cambia algo: "comprar", "cambiar precio", "despachar". |
+| **Consulta** | Una pregunta que solo lee: "¿qué zapatos hay?", "¿cuáles son mis pedidos?". |
+| **Evento (aviso)** | Un mensaje que cuenta algo que ya pasó: "se creó el pedido 12", "bajó el stock del zapato 3". |
+| **Kafka** | El sistema que recibe los avisos y se los reparte a quien los necesite. Además guarda el historial completo. |
+| **Servicio** | Un programa independiente que hace una sola tarea (por ejemplo, el de lectura). |
+| **Pase digital (token)** | Lo que recibe el usuario al iniciar sesión. Dice quién es y qué puede hacer; nadie puede falsificarlo. |
+| **Bandeja de salida (outbox)** | Donde quedan guardados los avisos hasta que Kafka confirma que los recibió. |
+| **Consistencia eventual** | La copia de lectura se pone al día un instante después (milisegundos) de cada venta. |
+| **Actualización en vivo (SSE)** | La página se actualiza sola, sin recargar, cuando algo cambia. |
+| **Contenedor (Docker)** | Una "caja" que trae lista una base de datos o Kafka, para no tener que instalarlos a mano. |
+
+## Cómo funciona
+
+El diagrama sigue **una compra de arriba hacia abajo**. Los colores separan las dos mitades del sistema:
+🟧 la que **guarda** y 🟩 la que **muestra**, unidas solo por ⬛ **Kafka**.
 
 ```mermaid
 flowchart TB
-    subgraph CLI["🖥️ APLICACIONES CLIENTE"]
-        LOGIN["🔑 <b>Login</b><br/>login.html"]
-        TIENDA["🛒 <b>Tienda</b><br/>compradores"]
-        ADMIN["🛠️ <b>Admin</b><br/>solo rol ADMIN"]
+    subgraph CLI["🖥️ PÁGINAS WEB"]
+        LOGIN["🔑 <b>Iniciar sesión</b>"]
+        TIENDA["🛒 <b>Tienda</b><br/>para compradores"]
+        ADMIN["🛠️ <b>Panel de administración</b><br/>solo administradores"]
     end
 
-    AUTH["🔐 <b>servicio-autenticacion</b> :8083<br/>revisa la contraseña y firma el JWT"]
-    CMD["✍️ <b>servicio-comandos</b> :8081<br/>ESCRITURA: permisos y reglas de negocio"]
-    PG[("<b>PostgreSQL</b> :5434<br/>fuente de verdad + tabla outbox")]
-    KAFKA{{"📨 <b>PILA DE MENSAJERÍA</b><br/>Apache Kafka :9094<br/>calzado-eventos<br/>pedido-eventos"}}
-    QRY["👀 <b>servicio-consultas</b> :8082<br/>LECTURA: responde GET y avisa en vivo (SSE)"]
-    NOTIF["✉️ <b>servicio-notificaciones</b><br/>correos simulados y alertas de stock"]
-    MONGO[("<b>MongoDB</b> :27018<br/>datos listos para mostrar")]
+    AUTH["🔐 <b>Servicio de acceso</b><br/>revisa la contraseña y<br/>entrega un pase digital<br/><i>servicio-autenticacion</i>"]
+    CMD["✍️ <b>Servicio de escritura</b><br/>revisa permisos y que haya stock<br/><i>servicio-comandos</i>"]
+    PG[("<b>Base de datos principal</b><br/>PostgreSQL<br/>registro oficial de ventas<br/>+ bandeja de avisos por enviar")]
+    KAFKA{{"📨 <b>Kafka</b><br/>cartelera de avisos<br/>(mensajería)"}}
+    QRY["👀 <b>Servicio de lectura</b><br/>muestra catálogo y pedidos<br/>y avisa los cambios al instante<br/><i>servicio-consultas</i>"]
+    NOTIF["✉️ <b>Servicio de notificaciones</b><br/>correos (simulados) y<br/>alertas de poco stock"]
+    MONGO[("<b>Base de datos de lectura</b><br/>MongoDB<br/>copia lista para mostrar")]
 
-    LOGIN -->|"① inicia sesión → recibe un JWT"| AUTH
-    TIENDA -->|"② comprar + JWT"| CMD
-    ADMIN -->|"② crear, cambiar precio, despachar + JWT"| CMD
-    CMD -->|"③ guarda pedido + evento en UNA transacción"| PG
-    PG -->|"④ el relevo publica el evento"| KAFKA
-    KAFKA -->|"⑤ entrega el evento"| QRY
-    KAFKA -->|"⑤ entrega el mismo evento"| NOTIF
-    QRY -->|"⑥ actualiza"| MONGO
-    TIENDA -.->|"⑦ ver catálogo y pedidos (GET + SSE)"| QRY
-    ADMIN -.->|"⑦ GET + SSE"| QRY
+    LOGIN -->|"① inicia sesión y recibe su pase"| AUTH
+    TIENDA -->|"② compra, mostrando su pase"| CMD
+    ADMIN -->|"② agrega zapatos, cambia precios, despacha"| CMD
+    CMD -->|"③ guarda la venta y su aviso, juntos"| PG
+    PG -->|"④ se envía el aviso"| KAFKA
+    KAFKA -->|"⑤ reparte el aviso"| QRY
+    KAFKA -->|"⑤ reparte el mismo aviso"| NOTIF
+    QRY -->|"⑥ actualiza la copia"| MONGO
+    TIENDA -.->|"⑦ mira catálogo y pedidos al instante"| QRY
+    ADMIN -.->|"⑦ mira todo al instante"| QRY
 
     classDef cliente fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
     classDef escritura fill:#ffedd5,stroke:#c2410c,color:#7c2d12
@@ -90,320 +123,325 @@ flowchart TB
 
 **Cómo leerlo:**
 
-1. **Login** → `servicio-autenticacion` compara la contraseña (hash BCrypt) y entrega un **JWT** firmado. Los demás
-   servicios verifican ese token con la clave pública que publica autenticación (`/.well-known/jwks.json`).
-2. **Tienda** y **Admin** envían **comandos** (comprar, crear calzado, despachar…) con el JWT a `servicio-comandos`.
-3. Comandos valida permisos y reglas (¿hay stock?) y guarda el cambio **y su evento** en PostgreSQL en una sola
-   transacción (tabla `outbox_eventos`): o se guardan los dos, o ninguno.
-4. Un **relevo** (*relay*) lee los eventos pendientes cada segundo y los publica en **Kafka**.
-5. Kafka entrega **el mismo evento** a cada consumidor, cada uno con su grupo (*consumer group*): consultas y
-   notificaciones lo procesan por su cuenta (publicar/suscribir, *pub/sub*).
-6. `servicio-consultas` actualiza **MongoDB**, el modelo de lectura.
-7. Los clientes **leen** solo de `servicio-consultas` (líneas punteadas) y reciben los cambios en vivo por SSE.
+1. El usuario **inicia sesión**. El servicio de acceso revisa su contraseña y le entrega un **pase digital**, que
+   dice quién es y si es comprador o administrador.
+2. Desde la **Tienda** o el **Panel de administración**, el usuario da una orden (comprar, cambiar un precio…) y
+   muestra su pase.
+3. El **servicio de escritura** revisa que tenga permiso y que haya stock. Luego guarda la venta **y el aviso** de lo
+   que pasó **al mismo tiempo**: o se guardan los dos, o ninguno.
+4. Cada segundo, los avisos pendientes se envían a **Kafka**.
+5. Kafka **reparte el mismo aviso** a cada servicio interesado, y cada uno lo procesa por su cuenta.
+6. El **servicio de lectura** actualiza su copia de los datos, preparada para mostrarse rápido.
+7. Las páginas **leen** solo del servicio de lectura (líneas punteadas) y se actualizan solas cuando algo cambia.
 
-> **Lo más importante:** no hay ninguna flecha entre `servicio-comandos` y `servicio-consultas`. Escritura y lectura
-> solo se comunican a través de Kafka; por eso, si la lectura se cae, se sigue vendiendo.
+> **Lo más importante:** no hay ninguna flecha entre el servicio de **escritura** y el de **lectura**. Solo se
+> comunican por medio de Kafka. Por eso, si la parte de lectura se cae, se sigue vendiendo.
 
-| Módulo | Qué hace | Tecnología |
+### ¿Por qué dos bases de datos?
+
+Porque guardar y mostrar necesitan cosas distintas:
+
+| Base de datos | Para qué se usa | Por qué esa |
 |---|---|---|
-| `eventos` | Contrato de mensajes compartido (records `CalzadoEvento`, `PedidoEvento`, nombres de tópicos) | Java puro |
-| `servicio-autenticacion` | Registro, login, contraseñas con BCrypt y emisión de JWT firmados (RS256) | Spring Security, JPA, PostgreSQL |
-| `servicio-comandos` | Recibe **comandos**, verifica permisos, aplica reglas de negocio, guarda y publica eventos | Spring Web, JPA, PostgreSQL, Kafka |
-| `servicio-consultas` | **Proyecta** los eventos en MongoDB, responde consultas y empuja cambios en vivo (SSE) | Spring Web, MongoDB, Kafka |
-| `servicio-notificaciones` | Segundo consumidor de los mismos eventos (otro *consumer group*) | Spring Kafka |
-| `cliente-web` | Sirve las aplicaciones cliente: Tienda, Admin y Login | HTML, CSS, JavaScript |
+| **Principal** (PostgreSQL) | Guardar ventas, stock y los avisos por enviar. Es el **registro oficial**. | Es muy estricta: nunca deja vender un par que no existe ni dejar datos a medias. |
+| **De lectura** (MongoDB) | Mostrar el catálogo y los pedidos. Es una **copia**. | Guarda los datos ya listos para mostrar, así que responde rápido. |
+| **De usuarios** (PostgreSQL) | Guardar las cuentas. Las contraseñas no se guardan tal cual, sino transformadas para que nadie pueda leerlas. | Se mantiene separada del resto por seguridad. |
 
-### Las tres bases de datos
+Cada servicio usa **solo su propia** base de datos; ninguno entra a la de otro.
 
-| Base | Motor | Dueño | Para qué |
-|---|---|---|---|
-| `tienda_comandos` | PostgreSQL | servicio-comandos | **Fuente de verdad**: tablas `calzados` y `pedidos` con transacciones, llave foránea y `@Version`, más `outbox_eventos` (eventos por enviar) |
-| `tienda_consultas` | MongoDB | servicio-consultas | **Modelo de lectura**: colecciones `catalogo` y `pedidos`, desnormalizadas y listas para mostrar |
-| `tienda_usuarios` | PostgreSQL | servicio-autenticacion | Tabla `usuarios` con contraseñas en hash BCrypt |
-
-Cada servicio es dueño de sus datos: ningún servicio lee la base de otro. La única forma de comunicación entre
-escritura y lectura son los eventos de Kafka.
-
-## Flujo de una compra
+## Una compra, paso a paso
 
 ```mermaid
 sequenceDiagram
-    actor C as Cliente (tienda.html)
-    participant A as servicio-autenticacion
-    participant W as servicio-comandos
-    participant PG as PostgreSQL
+    actor C as Comprador (Tienda)
+    participant A as Servicio de acceso
+    participant W as Servicio de escritura
+    participant PG as Base principal
     participant K as Kafka
-    participant R as servicio-consultas
-    participant M as MongoDB
-    participant N as servicio-notificaciones
-    actor AD as Admin (admin.html)
+    participant R as Servicio de lectura
+    participant M as Base de lectura
+    participant N as Servicio de notificaciones
+    actor AD as Administrador
 
-    C->>A: POST /api/auth/login
-    A-->>C: JWT firmado (RS256)
-    C->>W: POST /api/pedidos {calzadoId, cantidad} + Bearer JWT
-    W->>W: verifica firma y rol, valida stock
-    W->>PG: INSERT pedido + UPDATE stock + INSERT outbox_eventos (una sola transacción)
-    W-->>C: 201 {id, mensaje}
-    W->>K: relevo del outbox (cada 1 s): PEDIDO_CREADO y STOCK_DESCONTADO
-    W->>PG: marca los eventos como enviados (Kafka confirmó)
-    K->>R: consume (grupos consultas-*)
-    R->>M: upsert del pedido y del calzado
-    R-->>C: SSE: su pedido
-    R-->>AD: SSE: todos los pedidos
-    K->>N: consume (grupo notificaciones)
-    N->>N: [CORREO SIMULADO] y alerta de stock bajo
+    C->>A: Inicia sesión (correo y contraseña)
+    A-->>C: Le entrega su pase digital
+    C->>W: "Quiero este zapato" + su pase
+    W->>W: ¿El pase es válido? ¿Hay stock?
+    W->>PG: Guarda la venta, descuenta el stock y deja el aviso pendiente (todo junto)
+    W-->>C: "Pedido recibido"
+    W->>K: Envía los avisos pendientes (cada segundo)
+    W->>PG: Marca los avisos como enviados
+    K->>R: Le entrega el aviso
+    R->>M: Actualiza la copia
+    R-->>C: Su pedido aparece en pantalla
+    R-->>AD: El pedido nuevo aparece en su panel
+    K->>N: Le entrega el mismo aviso
+    N->>N: "Envía" el correo y avisa si queda poco stock
 ```
 
-El comando responde **antes** de que MongoDB se actualice: la lectura se pone al día milisegundos después. Eso es
-la **consistencia eventual** (*eventual consistency*) y la tienda muestra cuánto tardó.
+El "Pedido recibido" llega **antes** de que se actualice la copia de lectura: hay unos milisegundos de diferencia. A
+eso se le llama **consistencia eventual**, y la tienda muestra en pantalla cuánto tardó.
 
-## Roles y permisos
+## Quién puede hacer qué
 
-| Acción | Visitante | CLIENTE | ADMIN |
+| Acción | Visitante (sin sesión) | Comprador | Administrador |
 |---|:-:|:-:|:-:|
-| Ver catálogo (y sus cambios en vivo) | ✅ | ✅ | ✅ |
-| Comprar | ❌ 401 | ✅ | ✅ |
-| Ver los pedidos propios / recibirlos en vivo | ❌ 401 | ✅ solo los suyos | ✅ |
-| Cancelar un pedido | ❌ 401 | ✅ solo los suyos (si no, 403) | ✅ cualquiera |
-| Ver todos los pedidos | ❌ 401 | ❌ 403 | ✅ |
-| Registrar calzado, cambiar precio, reponer stock | ❌ 401 | ❌ 403 | ✅ |
-| Despachar pedidos | ❌ 401 | ❌ 403 | ✅ |
-| Reconstruir el modelo de lectura | ❌ 401 | ❌ 403 | ✅ |
-| Abrir `admin.html` | → login | → login | ✅ |
+| Ver el catálogo (y sus cambios en vivo) | ✅ | ✅ | ✅ |
+| Comprar | ❌ | ✅ | ✅ |
+| Ver los propios pedidos | ❌ | ✅ solo los suyos | ✅ |
+| Cancelar un pedido | ❌ | ✅ solo los suyos | ✅ cualquiera |
+| Ver los pedidos de todos | ❌ | ❌ | ✅ |
+| Agregar zapatos, cambiar precios, reponer stock | ❌ | ❌ | ✅ |
+| Despachar pedidos | ❌ | ❌ | ✅ |
+| Reconstruir la copia de lectura | ❌ | ❌ | ✅ |
+| Entrar al panel de administración | lo manda a iniciar sesión | lo manda a iniciar sesión | ✅ |
 
-- **401 Unauthorized** = el servidor no identifica al usuario (token ausente, vencido o alterado).
-- **403 Forbidden** = el usuario está identificado, pero no tiene permiso.
-- La protección real está en las **APIs** (`SeguridadConfig` de cada servicio). Que el navegador oculte el panel de
-  admin es solo comodidad: cualquiera podría llamar a la API con curl o Talend.
-- Registrarse siempre crea un **CLIENTE**. Los administradores solo se crean desde la configuración del servidor.
+- Los permisos se revisan **en el servidor**. Esconder un botón en la página no protege nada, porque cualquiera podría
+  enviar la orden por otro camino.
+- Quien se registra en la página siempre queda como **comprador**. Los administradores solo se crean desde la
+  configuración del servidor.
+- **Cuentas de prueba:** están en `servicio-autenticacion/src/main/resources/application.yml`, en
+  `tienda.usuarios-iniciales` (un administrador y un comprador).
 
-**Cuentas de demostración** (solo para desarrollo): están en
-`servicio-autenticacion/src/main/resources/application.yml` → `tienda.usuarios-iniciales` (un ADMIN y un CLIENTE).
+### Cómo funciona el pase digital
 
-### Cómo funciona el token
-1. `POST /api/auth/login` → el servicio de autenticación verifica la contraseña (BCrypt) y devuelve un **JWT**
-   firmado con su clave **privada** RSA. Contenido: `sub` (correo), `nombre`, `roles`, `exp` (2 horas).
-2. El navegador lo guarda en `sessionStorage` (por pestaña) y lo envía en cada petición:
-   `Authorization: Bearer <token>`. Para el canal en vivo (EventSource no permite cabeceras) va en
-   `?access_token=` y **solo** en `/api/stream`.
-3. Comandos y consultas descargan la clave **pública** (`/.well-known/jwks.json`) y verifican firma y vencimiento
-   **sin consultar** al servicio de autenticación. Si alguien modifica el token (por ejemplo, se pone `ADMIN`),
-   la firma ya no coincide → 401.
-4. La identidad sale del token, **nunca** del cuerpo o de un parámetro: el pedido no lleva correo, y "mis pedidos"
-   es `/api/pedidos/mios` (no `?email=`), para que nadie lea pedidos ajenos cambiando un correo.
+Funciona como la **manilla de un concierto**:
+
+1. La **taquilla** (servicio de acceso) revisa la contraseña y entrega la manilla con un **sello** que solo ella sabe
+   hacer. La manilla dice el nombre, el tipo de usuario y vence a las **2 horas**.
+2. El navegador la guarda mientras la pestaña está abierta y la muestra en cada orden.
+3. Los demás servicios **revisan el sello** sin tener que llamar a la taquilla. Si alguien altera la manilla (por
+   ejemplo, se cambia a "administrador"), el sello deja de coincidir y la orden se rechaza.
+4. El servidor siempre saca **quién es el usuario de la manilla**, nunca de lo que escriba en la página. Así nadie
+   puede ver los pedidos de otro cambiando un correo.
+
+## Qué pasa si algo falla
+
+| Si falla… | Qué pasa |
+|---|---|
+| **Kafka** | **Se sigue vendiendo.** Los avisos esperan en la bandeja de salida de la base principal y se envían, en orden, cuando Kafka vuelve. |
+| **La base de datos de lectura** | **Se sigue vendiendo.** El servicio de lectura vuelve a intentarlo, esperando cada vez un poco más (1, 2, 4, 8, 10 segundos…) durante unos 2 minutos. Si la base vuelve, no se pierde nada. |
+| **Llega un aviso dañado** | No frena a los demás ni se pierde: se aparta en una **bandeja especial de mensajes con problemas** para revisarlo después. |
+| **El servicio de lectura o el de notificaciones se apaga** | La parte de escritura ni se entera. Kafka guarda los avisos y, al volver, cada servicio sigue donde quedó. |
+| **Se pierde toda la copia de lectura** | El administrador pulsa **Reconstruir** y la copia se vuelve a armar desde el historial de Kafka, que no borra los avisos. |
+| **El servicio de escritura se apaga en medio de un envío** | Al volver, reenvía lo que no alcanzó a enviar. Un aviso puede llegar dos veces, pero aplicarlo dos veces da el mismo resultado. |
+| **Dos personas compran el último par al mismo tiempo** | Solo una compra se acepta; la otra recibe un mensaje de que no se pudo. Nunca se vende de más. |
+| **Se cae un contenedor** | Docker lo vuelve a encender solo, y los datos no se pierden porque se guardan fuera del contenedor. |
+
+**¿Por qué la bandeja de salida?** Antes, la venta se guardaba primero y el aviso se enviaba después. Si Kafka estaba
+caído justo en ese momento, la venta quedaba guardada pero **el aviso se perdía**, y la tienda mostraba datos
+equivocados para siempre. Ahora el aviso se guarda **junto con la venta**, en la base principal, y se envía apenas
+Kafka lo puede recibir. Solo se marca como enviado cuando Kafka confirma que lo tiene.
+
+**Cómo demostrarlo** (con todo encendido), en PowerShell:
+
+```powershell
+# 1) Kafka caído: se sigue vendiendo
+docker stop tienda-kafka
+#    → se compra en la tienda: "Pedido #N aceptado... Esperando que llegue al servicio de CONSULTAS"
+docker exec tienda-postgres psql -U tienda -d tienda_comandos -c "select id, tipo, enviado_en from outbox_eventos order by id desc limit 4;"
+#    → los avisos nuevos tienen "enviado_en" vacío: están pendientes
+docker start tienda-kafka
+#    → a los pocos segundos el pedido aparece solo en la tienda
+
+# 2) Base de lectura caída: el servicio vuelve a intentar
+docker stop tienda-mongo
+#    → se compra; la consola de consultas muestra "Fallo procesando ... (intento N). Se reintentara con espera."
+docker start tienda-mongo
+#    → el pedido aparece sin perder nada
+
+# 3) Aviso dañado → bandeja de mensajes con problemas
+docker exec tienda-kafka sh -c 'echo prueba:esto-no-es-json | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9094 --topic calzado-eventos --property parse.key=true --property key.separator=:'
+#    → en Kafka UI (http://localhost:8090) aparece en "calzado-eventos.DLT"
+```
 
 ## Cómo ejecutarlo
 
-Requisitos: Git, Docker Desktop encendido y **JDK 21** (Maven no hace falta: el proyecto trae `mvnw`).
+Se necesita: **Git**, **Docker Desktop** abierto y **Java 21** (JDK).
 
-1. Se clona el proyecto y se levanta la infraestructura (PostgreSQL, MongoDB, Kafka y Kafka UI):
+1. Se descarga el proyecto y se encienden las bases de datos y Kafka:
    ```powershell
    git clone https://github.com/JNoxg8/proyecto-CQRS.git
    cd proyecto-CQRS
    docker compose up -d
    ```
-   La primera vez, `docker/postgres-init/01-bases.sql` crea la base `tienda_usuarios`. Si el volumen de Postgres
-   ya existía antes de agregar la autenticación, la base se crea una sola vez de forma manual:
+   Si la base de datos ya existía de una versión anterior del proyecto, la base de usuarios se crea una sola vez así:
    ```powershell
    docker exec tienda-postgres psql -U tienda -d tienda_comandos -c "CREATE DATABASE tienda_usuarios OWNER tienda;"
    ```
-2. En IntelliJ: **File → Open** esta carpeta (proyecto Maven), SDK = JDK 21, y se ejecuta
-   **`Tienda: TODO (servidor + clientes)`** (o cada servicio del 1 al 5).
+2. En IntelliJ: **File → Open** con esta carpeta, se elige Java 21 y se ejecuta
+   **`Tienda: TODO (servidor + clientes)`**, que enciende todos los servicios a la vez.
 
-   Sin IntelliJ:
+   Sin IntelliJ (una terminal por cada servicio):
    ```powershell
    .\mvnw.cmd -DskipTests package
-   java -jar servicio-autenticacion\target\servicio-autenticacion-1.0.0.jar   # una terminal por servicio
+   java -jar servicio-autenticacion\target\servicio-autenticacion-1.0.0.jar
    java -jar servicio-comandos\target\servicio-comandos-1.0.0.jar
    java -jar servicio-consultas\target\servicio-consultas-1.0.0.jar
    java -jar servicio-notificaciones\target\servicio-notificaciones-1.0.0.jar
    java -jar cliente-web\target\cliente-web-1.0.0.jar
    ```
-3. Se abre <http://localhost:8080> (la tienda). El panel de admin está en <http://localhost:8080/admin.html> y pide
-   iniciar sesión como ADMIN. Kafka UI: <http://localhost:8090>.
+3. Se abre <http://localhost:8080> en el navegador.
 
-| Recurso | Dirección | Credenciales |
+| Qué | Dirección | Usuario / contraseña |
 |---|---|---|
-| Clientes web | http://localhost:8080 | cuentas de demostración (ver arriba) |
-| API de autenticación | http://localhost:8083/api/auth | — |
-| API de comandos | http://localhost:8081/api | JWT |
-| API de consultas | http://localhost:8082/api | JWT (catálogo público) |
-| Kafka UI | http://localhost:8090 | — (herramienta interna, no exponer) |
-| PostgreSQL (pgAdmin) | localhost:**5434**, BDs `tienda_comandos` y `tienda_usuarios` | `tienda` / `tienda123` |
-| MongoDB (Compass) | `mongodb://admin:admin@localhost:27018/?authSource=admin`, BD `tienda_consultas` | `admin` / `admin` |
+| **Tienda** | http://localhost:8080 | cuentas de prueba (ver arriba) |
+| **Panel de administración** | http://localhost:8080/admin.html | cuenta de administrador |
+| Kafka UI (ver los avisos) | http://localhost:8090 | — |
+| Base principal (pgAdmin) | localhost:**5434**, bases `tienda_comandos` y `tienda_usuarios` | `tienda` / `tienda123` |
+| Base de lectura (Compass) | `mongodb://admin:admin@localhost:27018/?authSource=admin`, base `tienda_consultas` | `admin` / `admin` |
 
-## API
+## Guion de demostración
+
+1. Se abre la **Tienda** sin iniciar sesión: el catálogo se ve, pero para comprar pide iniciar sesión.
+2. Se intenta abrir el panel de administración: la página manda a iniciar sesión con el aviso "solo para
+   administradores".
+3. Se inicia sesión como **comprador** en una ventana y como **administrador** en otra, con la consola del servicio
+   de notificaciones a la vista.
+4. El comprador hace una compra. Se observa:
+   - el mensaje "*Pedido #N ya está en MongoDB X ms después*": la copia de lectura se puso al día en milisegundos;
+   - el panel del administrador se actualiza solo y aparece el correo simulado: **un mismo aviso llegó a dos
+     servicios distintos**.
+5. Se crea otra cuenta de comprador y se compra: el primer comprador **no** ve ese pedido.
+6. Con la cuenta de comprador se intenta agregar un zapato: el servidor lo **rechaza por falta de permiso**.
+7. El administrador **cambia un precio**: los pedidos anteriores conservan el precio con el que se compraron.
+8. Se pulsa **Reconstruir**: la copia de lectura se borra y se vuelve a armar desde el historial de Kafka.
+9. En pgAdmin se ve que las contraseñas no están guardadas tal cual, sino transformadas (`$2a$10$...`).
+10. **Resistencia a fallos:** se apaga Kafka, se compra (funciona), se muestra el aviso pendiente, se enciende Kafka
+    y el pedido aparece solo (ver [Qué pasa si algo falla](#qué-pasa-si-algo-falla)).
+
+---
+
+## Detalles técnicos (para desarrolladores)
+
+Esta sección es para quien quiera revisar el código, así que usa los nombres técnicos.
+
+### Módulos
+
+| Módulo | Qué hace | Tecnología |
+|---|---|---|
+| `eventos` | Formato común de los avisos (`CalzadoEvento`, `PedidoEvento`) y nombres de los tópicos | Java |
+| `servicio-autenticacion` (:8083) | Registro, login, contraseñas con BCrypt y emisión de tokens JWT firmados (RS256) | Spring Security, JPA, PostgreSQL |
+| `servicio-comandos` (:8081) | Recibe las órdenes, revisa permisos y reglas, guarda y publica eventos | Spring Web, JPA, PostgreSQL, Kafka |
+| `servicio-consultas` (:8082) | Aplica los eventos en MongoDB, responde las lecturas y envía cambios en vivo (SSE) | Spring Web, MongoDB, Kafka |
+| `servicio-notificaciones` | Segundo consumidor de los mismos eventos (otro *consumer group*) | Spring Kafka |
+| `cliente-web` (:8080) | Sirve las páginas Tienda, Admin y Login | HTML, CSS, JavaScript |
+
+Bases de datos: `tienda_comandos` (PostgreSQL: tablas `calzados`, `pedidos` y `outbox_eventos`),
+`tienda_consultas` (MongoDB: colecciones `catalogo` y `pedidos`) y `tienda_usuarios` (PostgreSQL: tabla `usuarios`).
+
+### API
 
 **Autenticación** (`servicio-autenticacion`):
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| POST | `/api/auth/registro` | Crea una cuenta CLIENTE y devuelve su token (`{nombre, email, password}`) |
-| POST | `/api/auth/login` | Devuelve `{token, expiraEn, nombre, email, rol}` (401 si las credenciales no coinciden) |
-| GET | `/.well-known/jwks.json` | Clave pública para verificar tokens |
+| POST | `/api/auth/registro` | Crea una cuenta de comprador y devuelve su token (`{nombre, email, password}`) |
+| POST | `/api/auth/login` | Devuelve `{token, expiraEn, nombre, email, rol}` |
+| GET | `/.well-known/jwks.json` | Clave pública para verificar los tokens |
 
 **Comandos** (`servicio-comandos`, solo escriben; devuelven `{id, mensaje}`):
 
-| Método | Ruta | Comando | Rol |
+| Método | Ruta | Qué hace | Quién |
 |---|---|---|---|
-| POST | `/api/pedidos` | Crear pedido `{calzadoId, cantidad}` (409 si no hay stock) | CLIENTE, ADMIN |
-| POST | `/api/pedidos/{id}/cancelar` | Cancelar y devolver stock (solo CREADO) | dueño o ADMIN |
-| POST | `/api/pedidos/{id}/despachar` | Despachar (solo CREADO) | ADMIN |
-| POST | `/api/calzados` | Registrar calzado | ADMIN |
-| PUT | `/api/calzados/{id}/precio` | Cambiar precio | ADMIN |
-| POST | `/api/calzados/{id}/reponer-stock` | Reponer stock | ADMIN |
+| POST | `/api/pedidos` | Crear pedido `{calzadoId, cantidad}` | comprador, admin |
+| POST | `/api/pedidos/{id}/cancelar` | Cancelar y devolver el stock (solo si está CREADO) | dueño o admin |
+| POST | `/api/pedidos/{id}/despachar` | Despachar (solo si está CREADO) | admin |
+| POST | `/api/calzados` | Registrar un zapato | admin |
+| PUT | `/api/calzados/{id}/precio` | Cambiar precio | admin |
+| POST | `/api/calzados/{id}/reponer-stock` | Reponer stock | admin |
 
 **Consultas** (`servicio-consultas`, solo leen):
 
-| Método | Ruta | Qué devuelve | Rol |
+| Método | Ruta | Qué devuelve | Quién |
 |---|---|---|---|
-| GET | `/api/catalogo?marca=&categoria=&talla=&precioMax=&soloDisponibles=` | Catálogo filtrado | público |
-| GET | `/api/catalogo/{id}` | Un calzado | público |
-| GET | `/api/stream` | Canal en vivo (SSE), filtrado según el usuario | público / con token |
-| GET | `/api/pedidos/mios` | Pedidos del usuario autenticado | autenticado |
-| GET | `/api/pedidos`, `/api/pedidos/{id}` | Todos los pedidos / uno | ADMIN |
-| POST | `/api/admin/reconstruir` | Borra MongoDB y reproduce todos los eventos de Kafka | ADMIN |
+| GET | `/api/catalogo?marca=&categoria=&talla=&precioMax=&soloDisponibles=` | Catálogo filtrado | todos |
+| GET | `/api/catalogo/{id}` | Un zapato | todos |
+| GET | `/api/stream` | Canal de cambios en vivo (SSE), filtrado según el usuario | todos / con token |
+| GET | `/api/pedidos/mios` | Pedidos del usuario | con sesión |
+| GET | `/api/pedidos`, `/api/pedidos/{id}` | Todos los pedidos / uno | admin |
+| POST | `/api/admin/reconstruir` | Borra MongoDB y vuelve a aplicar todos los eventos de Kafka | admin |
 
-Errores con formato *Problem Details* (RFC 7807): `400` datos inválidos, `401` no autenticado, `403` sin permiso,
-`404` no existe, `409` regla de negocio o conflicto de concurrencia.
+Códigos de respuesta: `400` datos inválidos, `401` sin sesión o token inválido, `403` sin permiso, `404` no existe,
+`409` sin stock o compra simultánea. Hay peticiones de prueba listas en `requests.http` (IntelliJ) y
+`tienda_talend_collection.json` (Talend API Tester).
 
-Pruebas listas en `requests.http` (IntelliJ guarda los tokens automáticamente) y `tienda_talend_collection.json`
-(en Talend se ejecuta el login y el `token` obtenido se copia en la cabecera `Authorization` de las demás peticiones).
-
-## Eventos
+### Eventos
 
 | Tópico (clave) | Eventos |
 |---|---|
 | `calzado-eventos` (calzadoId) | `CALZADO_REGISTRADO`, `PRECIO_CAMBIADO`, `STOCK_REPUESTO`, `STOCK_DESCONTADO`, `STOCK_DEVUELTO` |
 | `pedido-eventos` (pedidoId) | `PEDIDO_CREADO`, `PEDIDO_DESPACHADO`, `PEDIDO_CANCELADO` |
-| `calzado-eventos.DLT`, `pedido-eventos.DLT` | *Dead Letter Topics*: mensajes que un consumidor no pudo procesar (ver [Tolerancia a fallos](#tolerancia-a-fallos)) |
+| `calzado-eventos.DLT`, `pedido-eventos.DLT` | *Dead Letter Topics*: mensajes que no se pudieron procesar |
 
-Los tópicos de eventos tienen **retención infinita** (`retention.ms=-1`): por defecto Kafka borra los mensajes de más
-de 7 días, y aquí los tópicos son el historial con el que se reconstruye el modelo de lectura.
+- Los tópicos tienen **retención infinita** (`retention.ms=-1`), porque son el historial con el que se reconstruye la
+  base de lectura.
+- Cada evento lleva el **estado completo** del zapato o pedido, así que aplicarlo dos veces da el mismo resultado
+  (*upsert* idempotente).
+- La clave del mensaje es el id: los eventos de un mismo zapato o pedido llegan en orden aunque haya 3 particiones.
 
-Cada evento lleva el **estado completo** de la entidad (*event-carried state transfer*), por eso la proyección
-es un simple *upsert* idempotente. Por el canal en vivo, los eventos de calzado llegan a todos, pero un evento de
-pedido (con nombre y correo) solo llega al ADMIN y al dueño del pedido.
+### Mecanismos de resistencia a fallos
 
-## Tolerancia a fallos
-
-| Falla | Qué hace el sistema | Mecanismo |
+| Falla | Mecanismo | Dónde está |
 |---|---|---|
-| **Kafka caído** | Las compras **siguen funcionando** (201). Los eventos esperan en la tabla `outbox_eventos` y se envían en orden cuando Kafka vuelve. | *Transactional Outbox* (`RegistradorOutbox` + `RelevoOutbox`) |
-| **MongoDB caído** | Se puede seguir comprando. `servicio-consultas` reintenta cada evento con espera exponencial (1 s, 2 s, 4 s, 8 s, 10 s…) durante ~2 min; si Mongo vuelve, no se pierde nada. | `DefaultErrorHandler` + `ExponentialBackOff` (`ErroresKafkaConfig`) |
-| **Mensaje corrupto o que falla siempre** | No bloquea al consumidor ni se descarta en silencio: se copia a `<tópico>.DLT` con cabeceras que dicen la excepción, el *offset* y el grupo que falló. | *Dead Letter Topic* (`DeadLetterPublishingRecoverer`) |
-| **`servicio-consultas` o `servicio-notificaciones` apagado** | La escritura no se entera. Al volver, cada grupo retoma desde su último *offset* confirmado. | Grupos de consumidores de Kafka |
-| **Se pierde MongoDB entero** | `POST /api/admin/reconstruir` vacía el modelo de lectura y reproduce todos los eventos desde el *offset* 0. | Retención infinita + proyecciones idempotentes |
-| **El servicio de comandos muere a mitad de envío** | Al reiniciar, el relevo reenvía lo que no quedó marcado. Puede llegar un duplicado, pero la proyección es un *upsert* idempotente. | Entrega *al menos una vez* (*at-least-once*) |
-| **Dos compras simultáneas del último par** | Una gana y la otra recibe 409. | Bloqueo optimista (`@Version`) |
-| **Un contenedor se cae** | Docker lo vuelve a iniciar; `docker ps` muestra si está `healthy`. Los datos (incluido el historial de Kafka) viven en volúmenes. | `restart: unless-stopped`, `healthcheck`, volúmenes con nombre |
+| Kafka caído | *Transactional Outbox*: el evento se guarda en la misma transacción que la venta; un relevo lo envía cada segundo y espera la confirmación (`acks=all`, productor idempotente) | `RegistradorOutbox`, `RelevoOutbox` |
+| MongoDB caído | Reintentos con espera exponencial (1 s × 2, máx. 10 s, ~2 min) | `DefaultErrorHandler` en `ErroresKafkaConfig` |
+| Mensaje corrupto | *Dead Letter Topic* con cabeceras de la excepción, el *offset* y el grupo | `DeadLetterPublishingRecoverer`, `ErrorHandlingDeserializer` |
+| Consumidor apagado | Cada *consumer group* retoma desde su último *offset* confirmado | Kafka |
+| Se pierde MongoDB | Reproducción de eventos desde el *offset* 0 | `POST /api/admin/reconstruir` |
+| Duplicados tras una caída | Entrega *al menos una vez* + proyecciones idempotentes | `servicio-consultas` |
+| Compra simultánea del último par | Bloqueo optimista | `@Version` en `Calzado` |
+| Contenedor caído | `restart: unless-stopped`, `healthcheck`, volúmenes con nombre | `docker-compose.yml` |
 
-**Por qué el Outbox.** Antes, el evento se enviaba a Kafka *después* del commit. Si Kafka estaba caído en ese
-momento, la compra quedaba guardada pero el evento se perdía, y la escritura y la lectura quedaban inconsistentes para
-siempre (problema de la **doble escritura**, *dual write*). Ahora el evento se guarda en PostgreSQL **en la misma
-transacción** que la compra: o se guardan los dos o ninguno. Un relevo programado lo envía después, espera la
-confirmación de Kafka (`acks=all`, productor idempotente) y solo entonces lo marca como enviado.
+### Decisiones de diseño
 
-**Demostración de fallos** (con todos los servicios arriba):
-
-```powershell
-# 1) Kafka caído: comprar sigue funcionando
-docker stop tienda-kafka
-#    → se compra en la tienda: "Pedido #N aceptado por el servicio de COMANDOS... Esperando que llegue al servicio de CONSULTAS"
-docker exec tienda-postgres psql -U tienda -d tienda_comandos -c "select id, tipo, enviado_en from outbox_eventos order by id desc limit 4;"
-#    → los eventos nuevos tienen enviado_en vacío (pendientes)
-docker start tienda-kafka
-#    → a los pocos segundos: "✓ Pedido #N ya está en MongoDB ... ms después" (SSE) y la consola de comandos dice "Kafka disponible de nuevo"
-
-# 2) MongoDB caído: reintentos con espera
-docker stop tienda-mongo
-#    → se compra; la consola de consultas muestra "Fallo procesando ... (intento N). Se reintentara con espera."
-docker start tienda-mongo
-#    → el pedido se proyecta sin perder nada
-
-# 3) Mensaje corrupto → Dead Letter Topic
-docker exec tienda-kafka sh -c 'echo prueba:esto-no-es-json | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9094 --topic calzado-eventos --property parse.key=true --property key.separator=:'
-#    → en Kafka UI (http://localhost:8090) aparece en calzado-eventos.DLT, una vez por cada grupo consumidor
-```
-
-## Guion de demostración (6 minutos)
-
-1. Se abre la **Tienda** sin iniciar sesión: el catálogo se ve, pero comprar pide iniciar sesión.
-2. Al intentar abrir `admin.html`, el sistema redirige al login con el aviso "solo para administradores".
-3. Se inicia sesión como **cliente** en una ventana y como **admin** en otra (o en otra pestaña), con la
-   consola de `servicio-notificaciones` a la vista.
-4. Se realiza una compra como cliente. Se observa:
-   - el aviso "*Pedido #N ya está en MongoDB X ms después*" → **consistencia eventual**;
-   - el Admin se actualiza solo (SSE) y aparece el `[CORREO SIMULADO]` → **pub/sub**.
-5. Se crea una segunda cuenta de cliente y se realiza una compra: el primer cliente **no** ve ese pedido (ni en la tabla ni en vivo).
-6. Desde Talend, con el token del cliente, se intenta registrar un calzado → **403**; sin token → **401**.
-7. En el Admin se **cambia un precio**: los pedidos viejos conservan su precio (**modelo desnormalizado**).
-8. Se pulsa **Reconstruir modelo de lectura**: MongoDB se vacía y se reconstruye desde Kafka (**event replay**).
-9. En pgAdmin, en `tienda_usuarios.usuarios`, se verifica que las contraseñas están como hash BCrypt (`$2a$10$...`).
-10. **Tolerancia a fallos**: `docker stop tienda-kafka`, se compra (funciona), se muestra el evento pendiente en
-    `outbox_eventos`, `docker start tienda-kafka` y el pedido aparece solo (ver [Tolerancia a fallos](#tolerancia-a-fallos)).
-
-## Decisiones de diseño
-
-- **Comandos con intención** (`CrearPedido`, `ReponerStock`) en vez de CRUD genérico; los comandos no devuelven datos.
+- **Órdenes con intención** (`CrearPedido`, `ReponerStock`) en vez de un CRUD genérico; las órdenes no devuelven datos.
 - **Reglas de negocio dentro de las entidades** (`Calzado.descontarStock`, `Pedido.cancelar`), probadas con JUnit.
-- **`@Version` (bloqueo optimista)**: dos compras simultáneas del último par no pueden vender de más.
-- **Transactional Outbox**: el evento se guarda en la misma transacción que el cambio y un relevo lo envía a Kafka.
-  Kafka nunca anuncia algo que se revirtió, y un evento confirmado nunca se pierde aunque Kafka esté caído.
-- **Reintentos con espera exponencial + Dead Letter Topic** en los consumidores: una falla temporal se supera sola y
-  una permanente queda guardada para revisarla, en vez de descartarse.
-- **Clave del mensaje = id** de la entidad: los eventos de un mismo calzado llegan en orden aunque haya 3 particiones.
-- **`ErrorHandlingDeserializer`**: un mensaje corrupto no bloquea al consumidor para siempre.
-- **Seguridad**: JWT RS256 (solo autenticación puede firmar), BCrypt, mismo mensaje para correo inexistente y clave
-  incorrecta (evita enumerar usuarios), lista blanca de rutas (`denyAll` por defecto), CORS limitado a
-  `localhost:8080`, escape de HTML contra XSS, validación con Bean Validation, base de datos separada para usuarios.
+- **Seguridad:** JWT RS256 (solo el servicio de acceso puede firmar), BCrypt, el mismo mensaje para correo inexistente
+  y contraseña incorrecta, todas las rutas cerradas salvo las permitidas, CORS limitado a `localhost:8080`,
+  protección contra XSS y base de datos separada para los usuarios.
 
 ### Límites conocidos (mejoras posibles)
 
-- Kafka es un solo *broker* con factor de replicación 1: si su disco se daña, se pierde el historial de eventos.
-  En producción serían 3 *brokers* con `replication.factor=3` y `min.insync.replicas=2`.
-- El relevo del outbox está pensado para **una** instancia de `servicio-comandos`; con varias haría falta un bloqueo
-  (`SELECT ... FOR UPDATE SKIP LOCKED`) o una herramienta de CDC como Debezium.
-- La entrega es *al menos una vez*: tras una caída, `servicio-notificaciones` podría repetir un correo simulado
-  → guardar los ids de eventos ya procesados (consumidor idempotente).
-- Un JWT no se puede revocar al instante: sigue valiendo hasta que vence (2 h) → expiración corta + *refresh tokens*.
-- El token en `sessionStorage` es legible por JavaScript: un XSS podría robarlo → cookies `HttpOnly` con un BFF.
-- No hay límite de intentos de login → *rate limiting* / bloqueo temporal.
-- La clave RSA se genera al arrancar; en producción vendría de un almacén de secretos (*vault*).
-- Kafka UI no tiene autenticación: es una herramienta interna que no debe exponerse.
+- Kafka corre en **un solo servidor**: si su disco se daña, se pierde el historial. En producción serían 3 servidores
+  con copias de cada mensaje.
+- El envío de avisos pendientes supone **una sola copia** del servicio de escritura; con varias haría falta un bloqueo
+  (`SELECT ... FOR UPDATE SKIP LOCKED`) o una herramienta como Debezium.
+- Tras una caída, el servicio de notificaciones podría repetir un correo simulado.
+- Un token no se puede anular antes de que venza (2 horas).
+- El token se guarda en el navegador, donde un script malicioso (XSS) podría leerlo; lo ideal serían cookies `HttpOnly`.
+- No hay límite de intentos de inicio de sesión.
+- La clave para firmar tokens se genera al arrancar; en producción vendría de un almacén de secretos.
+- Kafka UI no pide contraseña: es una herramienta interna que no debe publicarse.
 
-## Estructura del repositorio
+### Estructura del repositorio
 
 ```
 proyecto-CQRS/
-├── docker-compose.yml           # PostgreSQL :5434, MongoDB :27018, Kafka :9094, Kafka UI :8090 (con healthchecks)
+├── docker-compose.yml           # PostgreSQL :5434, MongoDB :27018, Kafka :9094, Kafka UI :8090
 ├── docker/postgres-init/        # crea la base tienda_usuarios la primera vez
-├── pom.xml                      # proyecto Maven padre (multi-módulo)
-├── eventos/                     # contrato compartido: records de eventos, enums y nombres de tópicos
-├── servicio-autenticacion/      # :8083 login, registro, BCrypt, JWT RS256, JWKS
-│   └── src/main/java/com/tienda/autenticacion/{api, aplicacion, dominio, token, config}
-├── servicio-comandos/           # :8081 lado de ESCRITURA
-│   └── src/main/java/com/tienda/comandos/{api, comandos, aplicacion, dominio, repositorio, mensajeria, config}
-├── servicio-consultas/          # :8082 lado de LECTURA
-│   └── src/main/java/com/tienda/consultas/{api, aplicacion, modelo, proyeccion, repositorio, tiemporeal, config}
-├── servicio-notificaciones/     # consumidor independiente (correos simulados, alertas de stock)
-├── cliente-web/                 # :8080 sirve las páginas
-│   └── src/main/resources/static/{tienda.html, admin.html, login.html, js/, css/}
-├── .run/                        # configuraciones de ejecución de IntelliJ ("Tienda: TODO")
-├── requests.http                # pruebas de la API para IntelliJ (guarda los tokens solo)
-├── tienda_talend_collection.json# las mismas pruebas para Talend API Tester
+├── pom.xml                      # proyecto Maven principal
+├── eventos/                     # formato común de los avisos
+├── servicio-autenticacion/      # :8083 inicio de sesión y tokens
+├── servicio-comandos/           # :8081 parte de ESCRITURA
+├── servicio-consultas/          # :8082 parte de LECTURA
+├── servicio-notificaciones/     # correos simulados y alertas de stock
+├── cliente-web/                 # :8080 páginas web (tienda.html, admin.html, login.html)
+├── .run/                        # configuraciones de IntelliJ ("Tienda: TODO")
+├── requests.http                # peticiones de prueba para IntelliJ
+├── tienda_talend_collection.json# las mismas peticiones para Talend API Tester
 └── docs/                        # documentación en Word
 ```
 
-Cada servicio sigue capas simples: `api` (controladores REST) → `aplicacion` (casos de uso) → `dominio`
-(entidades y reglas de negocio) → `repositorio` (acceso a datos), más `mensajeria`/`proyeccion` para Kafka y
-`config` para seguridad, CORS y datos iniciales.
+Cada servicio se organiza en capas: `api` (recibe las peticiones) → `aplicacion` (casos de uso) → `dominio` (reglas
+de negocio) → `repositorio` (acceso a la base de datos), más `mensajeria`/`proyeccion` para Kafka y `config`.
 
-## Pruebas
+### Pruebas
 
 ```powershell
 .\mvnw.cmd test
 ```
-38 pruebas: reglas de negocio, proyecciones, login/registro/firma de tokens, la **matriz de permisos** de cada API
-(con tokens simulados) y el **outbox** (qué se guarda, el orden de envío y que un evento no se salta si Kafka está
-caído). No necesitan Docker.
+
+38 pruebas automáticas: reglas de negocio, actualización de la copia de lectura, inicio de sesión y tokens, permisos
+de cada ruta y la bandeja de salida (qué se guarda, en qué orden se envía y que nada se salta si Kafka está caído).
+No necesitan Docker.
