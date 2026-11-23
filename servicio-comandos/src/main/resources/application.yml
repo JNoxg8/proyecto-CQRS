@@ -24,12 +24,26 @@ spring:
 
   kafka:
     bootstrap-servers: localhost:9094
+    admin:
+      modify-topic-configs: true   # applies retention.ms=-1 (TopicosKafkaConfig) to already existing topics
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # acks=all + idempotence: Kafka confirms only when the message is safely stored, and a retry never
+      # writes a duplicate in the topic (they are the defaults since Kafka 3.0; written here to make them visible).
+      acks: all
+      properties:
+        enable.idempotence: true
+        # Fail fast when Kafka is down: the outbox relay keeps the event and retries on its next round.
+        max.block.ms: 5000
+        request.timeout.ms: 5000
+        delivery.timeout.ms: 10000
 
 tienda:
   # Origins allowed to call this API from a browser (the client apps of cliente-web)
   cors-origenes: http://localhost:8080,http://127.0.0.1:8080
   # Registers a few shoes the first time the service starts (only if the table is empty)
   datos-iniciales: true
+
+  outbox:
+    intervalo-ms: 1000      # how often the relay looks for pending events (RelevoOutbox)

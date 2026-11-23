@@ -14,7 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Handles the inventory commands. Each method = one transaction:
- * load -> apply business rule -> save -> announce the event (sent to Kafka after commit).
+ * load -> apply business rule -> save -> announce the event (stored in the outbox in the same transaction;
+ * the outbox relay sends it to Kafka).
  */
 @Service
 public class CalzadoServicio {

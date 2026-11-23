@@ -5,7 +5,7 @@
 ![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-3.8-231F20)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-escritura-336791)
 ![MongoDB](https://img.shields.io/badge/MongoDB-lectura-47A248)
-![Pruebas](https://img.shields.io/badge/pruebas-35%20JUnit-blue)
+![Pruebas](https://img.shields.io/badge/pruebas-38%20JUnit-blue)
 
 Proyecto académico — **Universidad Central**.
 
@@ -21,6 +21,8 @@ La solución es una tienda de calzado en línea:
   actualizaciones en vivo (SSE).
 - **Seguridad:** inicio de sesión con JWT firmado (RS256) y roles: un cliente solo usa la tienda y el administrador
   tiene acceso total.
+- **Tolerancia a fallos:** *Transactional Outbox*, reintentos con espera exponencial, *Dead Letter Topics*,
+  reconstrucción del modelo de lectura y contenedores con reinicio automático y *healthchecks*.
 
 📄 Documentación en Word (carpeta [`docs/`](docs/)):
 - [Documentación del proyecto](docs/Documentacion_Proyecto_CQRS.docx): marco conceptual, arquitectura, modelo de
@@ -36,6 +38,7 @@ La solución es una tienda de calzado en línea:
 - [Cómo ejecutarlo](#cómo-ejecutarlo)
 - [API](#api)
 - [Eventos](#eventos)
+- [Tolerancia a fallos](#tolerancia-a-fallos)
 - [Guion de demostración](#guion-de-demostración-6-minutos)
 - [Decisiones de diseño](#decisiones-de-diseño)
 - [Estructura del repositorio](#estructura-del-repositorio)
@@ -43,37 +46,63 @@ La solución es una tienda de calzado en línea:
 
 ## Arquitectura
 
+El diagrama sigue **una compra de arriba hacia abajo**. Los colores separan los dos lados de CQRS:
+🟧 **escritura** (comandos + PostgreSQL) y 🟩 **lectura** (consultas + MongoDB), unidos solo por ⬛ **Kafka**.
+
+```mermaid
+flowchart TB
+    subgraph CLI["🖥️ APLICACIONES CLIENTE"]
+        LOGIN["🔑 <b>Login</b><br/>login.html"]
+        TIENDA["🛒 <b>Tienda</b><br/>compradores"]
+        ADMIN["🛠️ <b>Admin</b><br/>solo rol ADMIN"]
+    end
+
+    AUTH["🔐 <b>servicio-autenticacion</b> :8083<br/>revisa la contraseña y firma el JWT"]
+    CMD["✍️ <b>servicio-comandos</b> :8081<br/>ESCRITURA: permisos y reglas de negocio"]
+    PG[("<b>PostgreSQL</b> :5434<br/>fuente de verdad + tabla outbox")]
+    KAFKA{{"📨 <b>PILA DE MENSAJERÍA</b><br/>Apache Kafka :9094<br/>calzado-eventos<br/>pedido-eventos"}}
+    QRY["👀 <b>servicio-consultas</b> :8082<br/>LECTURA: responde GET y avisa en vivo (SSE)"]
+    NOTIF["✉️ <b>servicio-notificaciones</b><br/>correos simulados y alertas de stock"]
+    MONGO[("<b>MongoDB</b> :27018<br/>datos listos para mostrar")]
+
+    LOGIN -->|"① inicia sesión → recibe un JWT"| AUTH
+    TIENDA -->|"② comprar + JWT"| CMD
+    ADMIN -->|"② crear, cambiar precio, despachar + JWT"| CMD
+    CMD -->|"③ guarda pedido + evento en UNA transacción"| PG
+    PG -->|"④ el relevo publica el evento"| KAFKA
+    KAFKA -->|"⑤ entrega el evento"| QRY
+    KAFKA -->|"⑤ entrega el mismo evento"| NOTIF
+    QRY -->|"⑥ actualiza"| MONGO
+    TIENDA -.->|"⑦ ver catálogo y pedidos (GET + SSE)"| QRY
+    ADMIN -.->|"⑦ GET + SSE"| QRY
+
+    classDef cliente fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    classDef escritura fill:#ffedd5,stroke:#c2410c,color:#7c2d12
+    classDef lectura fill:#dcfce7,stroke:#15803d,color:#14532d
+    classDef kafka fill:#262626,stroke:#000,color:#fff
+    classDef otro fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    class LOGIN,TIENDA,ADMIN cliente
+    class CMD,PG escritura
+    class QRY,MONGO lectura
+    class KAFKA kafka
+    class AUTH,NOTIF otro
 ```
- ┌──────────────────┐   ┌──────────────────┐   ┌────────────┐
- │ Cliente TIENDA   │   │ Cliente ADMIN    │   │ Login /    │      APLICACIONES CLIENTE (cliente-web :8080)
- │ visitante o      │   │ solo rol ADMIN   │   │ registro   │
- │ rol CLIENTE      │   │                  │   │            │
- └──┬───────────▲───┘   └──┬───────────▲───┘   └─────┬──────┘
-    │ comandos  │ GET+SSE  │ comandos  │ GET+SSE      │ login → JWT
-    │ + JWT     │ + JWT    │ + JWT     │ + JWT        ▼
-    │           │          │           │      ┌──────────────────────────┐
-    │           │          │           │      │ servicio-autenticacion   │
-    │           │          │           │      │ :8083 usuarios (BCrypt)  │
-    │           │          │           │      │ firma JWT RS256          │
-    │           │          │           │      │ PostgreSQL tienda_usuarios│
-    │           │          │           │      └────────────┬─────────────┘
-    ▼           │          ▼           │                   │ clave PÚBLICA (/.well-known/jwks.json)
- ┌─────────────────────┐        ┌──────┴──────────────┐    │
- │ servicio-comandos   │◄───────┼─────────────────────┼────┘ ambos verifican la firma de cada token
- │ :8081  ESCRITURA    │        │ servicio-consultas  │
- │ reglas + permisos   │        │ :8082  LECTURA      │       APLICACIÓN SERVIDOR
- │ PostgreSQL :5434    │        │ MongoDB :27018 + SSE│
- └─────────┬───────────┘        └───────▲─────────────┘
-           │ publica (después del commit)│ consume (grupos consultas-*)
-           ▼                             │
-     ┌──────────────── KAFKA :9094 ──────┴──────────┐   PILA DE MENSAJERÍA
-     │  calzado-eventos (3 part.)  pedido-eventos (3)│
-     └──────────────────────────────┬───────────────┘
-                                    ▼ consume (grupo notificaciones)
-                         ┌─────────────────────────┐
-                         │ servicio-notificaciones │  correos simulados + alertas de stock
-                         └─────────────────────────┘
-```
+
+**Cómo leerlo:**
+
+1. **Login** → `servicio-autenticacion` compara la contraseña (hash BCrypt) y entrega un **JWT** firmado. Los demás
+   servicios verifican ese token con la clave pública que publica autenticación (`/.well-known/jwks.json`).
+2. **Tienda** y **Admin** envían **comandos** (comprar, crear calzado, despachar…) con el JWT a `servicio-comandos`.
+3. Comandos valida permisos y reglas (¿hay stock?) y guarda el cambio **y su evento** en PostgreSQL en una sola
+   transacción (tabla `outbox_eventos`): o se guardan los dos, o ninguno.
+4. Un **relevo** (*relay*) lee los eventos pendientes cada segundo y los publica en **Kafka**.
+5. Kafka entrega **el mismo evento** a cada consumidor, cada uno con su grupo (*consumer group*): consultas y
+   notificaciones lo procesan por su cuenta (publicar/suscribir, *pub/sub*).
+6. `servicio-consultas` actualiza **MongoDB**, el modelo de lectura.
+7. Los clientes **leen** solo de `servicio-consultas` (líneas punteadas) y reciben los cambios en vivo por SSE.
+
+> **Lo más importante:** no hay ninguna flecha entre `servicio-comandos` y `servicio-consultas`. Escritura y lectura
+> solo se comunican a través de Kafka; por eso, si la lectura se cae, se sigue vendiendo.
 
 | Módulo | Qué hace | Tecnología |
 |---|---|---|
@@ -88,7 +117,7 @@ La solución es una tienda de calzado en línea:
 
 | Base | Motor | Dueño | Para qué |
 |---|---|---|---|
-| `tienda_comandos` | PostgreSQL | servicio-comandos | **Fuente de verdad**: tablas `calzados` y `pedidos` con transacciones, llave foránea y `@Version` |
+| `tienda_comandos` | PostgreSQL | servicio-comandos | **Fuente de verdad**: tablas `calzados` y `pedidos` con transacciones, llave foránea y `@Version`, más `outbox_eventos` (eventos por enviar) |
 | `tienda_consultas` | MongoDB | servicio-consultas | **Modelo de lectura**: colecciones `catalogo` y `pedidos`, desnormalizadas y listas para mostrar |
 | `tienda_usuarios` | PostgreSQL | servicio-autenticacion | Tabla `usuarios` con contraseñas en hash BCrypt |
 
@@ -113,9 +142,10 @@ sequenceDiagram
     A-->>C: JWT firmado (RS256)
     C->>W: POST /api/pedidos {calzadoId, cantidad} + Bearer JWT
     W->>W: verifica firma y rol, valida stock
-    W->>PG: INSERT pedido + UPDATE stock (una transacción)
+    W->>PG: INSERT pedido + UPDATE stock + INSERT outbox_eventos (una sola transacción)
     W-->>C: 201 {id, mensaje}
-    W->>K: después del COMMIT: PEDIDO_CREADO y STOCK_DESCONTADO
+    W->>K: relevo del outbox (cada 1 s): PEDIDO_CREADO y STOCK_DESCONTADO
+    W->>PG: marca los eventos como enviados (Kafka confirmó)
     K->>R: consume (grupos consultas-*)
     R->>M: upsert del pedido y del calzado
     R-->>C: SSE: su pedido
@@ -246,10 +276,55 @@ Pruebas listas en `requests.http` (IntelliJ guarda los tokens automáticamente) 
 |---|---|
 | `calzado-eventos` (calzadoId) | `CALZADO_REGISTRADO`, `PRECIO_CAMBIADO`, `STOCK_REPUESTO`, `STOCK_DESCONTADO`, `STOCK_DEVUELTO` |
 | `pedido-eventos` (pedidoId) | `PEDIDO_CREADO`, `PEDIDO_DESPACHADO`, `PEDIDO_CANCELADO` |
+| `calzado-eventos.DLT`, `pedido-eventos.DLT` | *Dead Letter Topics*: mensajes que un consumidor no pudo procesar (ver [Tolerancia a fallos](#tolerancia-a-fallos)) |
+
+Los tópicos de eventos tienen **retención infinita** (`retention.ms=-1`): por defecto Kafka borra los mensajes de más
+de 7 días, y aquí los tópicos son el historial con el que se reconstruye el modelo de lectura.
 
 Cada evento lleva el **estado completo** de la entidad (*event-carried state transfer*), por eso la proyección
 es un simple *upsert* idempotente. Por el canal en vivo, los eventos de calzado llegan a todos, pero un evento de
 pedido (con nombre y correo) solo llega al ADMIN y al dueño del pedido.
+
+## Tolerancia a fallos
+
+| Falla | Qué hace el sistema | Mecanismo |
+|---|---|---|
+| **Kafka caído** | Las compras **siguen funcionando** (201). Los eventos esperan en la tabla `outbox_eventos` y se envían en orden cuando Kafka vuelve. | *Transactional Outbox* (`RegistradorOutbox` + `RelevoOutbox`) |
+| **MongoDB caído** | Se puede seguir comprando. `servicio-consultas` reintenta cada evento con espera exponencial (1 s, 2 s, 4 s, 8 s, 10 s…) durante ~2 min; si Mongo vuelve, no se pierde nada. | `DefaultErrorHandler` + `ExponentialBackOff` (`ErroresKafkaConfig`) |
+| **Mensaje corrupto o que falla siempre** | No bloquea al consumidor ni se descarta en silencio: se copia a `<tópico>.DLT` con cabeceras que dicen la excepción, el *offset* y el grupo que falló. | *Dead Letter Topic* (`DeadLetterPublishingRecoverer`) |
+| **`servicio-consultas` o `servicio-notificaciones` apagado** | La escritura no se entera. Al volver, cada grupo retoma desde su último *offset* confirmado. | Grupos de consumidores de Kafka |
+| **Se pierde MongoDB entero** | `POST /api/admin/reconstruir` vacía el modelo de lectura y reproduce todos los eventos desde el *offset* 0. | Retención infinita + proyecciones idempotentes |
+| **El servicio de comandos muere a mitad de envío** | Al reiniciar, el relevo reenvía lo que no quedó marcado. Puede llegar un duplicado, pero la proyección es un *upsert* idempotente. | Entrega *al menos una vez* (*at-least-once*) |
+| **Dos compras simultáneas del último par** | Una gana y la otra recibe 409. | Bloqueo optimista (`@Version`) |
+| **Un contenedor se cae** | Docker lo vuelve a iniciar; `docker ps` muestra si está `healthy`. Los datos (incluido el historial de Kafka) viven en volúmenes. | `restart: unless-stopped`, `healthcheck`, volúmenes con nombre |
+
+**Por qué el Outbox.** Antes, el evento se enviaba a Kafka *después* del commit. Si Kafka estaba caído en ese
+momento, la compra quedaba guardada pero el evento se perdía, y la escritura y la lectura quedaban inconsistentes para
+siempre (problema de la **doble escritura**, *dual write*). Ahora el evento se guarda en PostgreSQL **en la misma
+transacción** que la compra: o se guardan los dos o ninguno. Un relevo programado lo envía después, espera la
+confirmación de Kafka (`acks=all`, productor idempotente) y solo entonces lo marca como enviado.
+
+**Demostración de fallos** (con todos los servicios arriba):
+
+```powershell
+# 1) Kafka caído: comprar sigue funcionando
+docker stop tienda-kafka
+#    → se compra en la tienda: "Pedido #N aceptado por el servicio de COMANDOS... Esperando que llegue al servicio de CONSULTAS"
+docker exec tienda-postgres psql -U tienda -d tienda_comandos -c "select id, tipo, enviado_en from outbox_eventos order by id desc limit 4;"
+#    → los eventos nuevos tienen enviado_en vacío (pendientes)
+docker start tienda-kafka
+#    → a los pocos segundos: "✓ Pedido #N ya está en MongoDB ... ms después" (SSE) y la consola de comandos dice "Kafka disponible de nuevo"
+
+# 2) MongoDB caído: reintentos con espera
+docker stop tienda-mongo
+#    → se compra; la consola de consultas muestra "Fallo procesando ... (intento N). Se reintentara con espera."
+docker start tienda-mongo
+#    → el pedido se proyecta sin perder nada
+
+# 3) Mensaje corrupto → Dead Letter Topic
+docker exec tienda-kafka sh -c 'echo prueba:esto-no-es-json | /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9094 --topic calzado-eventos --property parse.key=true --property key.separator=:'
+#    → en Kafka UI (http://localhost:8090) aparece en calzado-eventos.DLT, una vez por cada grupo consumidor
+```
 
 ## Guion de demostración (6 minutos)
 
@@ -265,13 +340,18 @@ pedido (con nombre y correo) solo llega al ADMIN y al dueño del pedido.
 7. En el Admin se **cambia un precio**: los pedidos viejos conservan su precio (**modelo desnormalizado**).
 8. Se pulsa **Reconstruir modelo de lectura**: MongoDB se vacía y se reconstruye desde Kafka (**event replay**).
 9. En pgAdmin, en `tienda_usuarios.usuarios`, se verifica que las contraseñas están como hash BCrypt (`$2a$10$...`).
+10. **Tolerancia a fallos**: `docker stop tienda-kafka`, se compra (funciona), se muestra el evento pendiente en
+    `outbox_eventos`, `docker start tienda-kafka` y el pedido aparece solo (ver [Tolerancia a fallos](#tolerancia-a-fallos)).
 
 ## Decisiones de diseño
 
 - **Comandos con intención** (`CrearPedido`, `ReponerStock`) en vez de CRUD genérico; los comandos no devuelven datos.
 - **Reglas de negocio dentro de las entidades** (`Calzado.descontarStock`, `Pedido.cancelar`), probadas con JUnit.
 - **`@Version` (bloqueo optimista)**: dos compras simultáneas del último par no pueden vender de más.
-- **Publicación después del commit** (`@TransactionalEventListener(AFTER_COMMIT)`): Kafka nunca anuncia algo que se revirtió.
+- **Transactional Outbox**: el evento se guarda en la misma transacción que el cambio y un relevo lo envía a Kafka.
+  Kafka nunca anuncia algo que se revirtió, y un evento confirmado nunca se pierde aunque Kafka esté caído.
+- **Reintentos con espera exponencial + Dead Letter Topic** en los consumidores: una falla temporal se supera sola y
+  una permanente queda guardada para revisarla, en vez de descartarse.
 - **Clave del mensaje = id** de la entidad: los eventos de un mismo calzado llegan en orden aunque haya 3 particiones.
 - **`ErrorHandlingDeserializer`**: un mensaje corrupto no bloquea al consumidor para siempre.
 - **Seguridad**: JWT RS256 (solo autenticación puede firmar), BCrypt, mismo mensaje para correo inexistente y clave
@@ -280,19 +360,23 @@ pedido (con nombre y correo) solo llega al ADMIN y al dueño del pedido.
 
 ### Límites conocidos (mejoras posibles)
 
-- Si Kafka cae justo después del commit, el evento se pierde → **Transactional Outbox**.
+- Kafka es un solo *broker* con factor de replicación 1: si su disco se daña, se pierde el historial de eventos.
+  En producción serían 3 *brokers* con `replication.factor=3` y `min.insync.replicas=2`.
+- El relevo del outbox está pensado para **una** instancia de `servicio-comandos`; con varias haría falta un bloqueo
+  (`SELECT ... FOR UPDATE SKIP LOCKED`) o una herramienta de CDC como Debezium.
+- La entrega es *al menos una vez*: tras una caída, `servicio-notificaciones` podría repetir un correo simulado
+  → guardar los ids de eventos ya procesados (consumidor idempotente).
 - Un JWT no se puede revocar al instante: sigue valiendo hasta que vence (2 h) → expiración corta + *refresh tokens*.
 - El token en `sessionStorage` es legible por JavaScript: un XSS podría robarlo → cookies `HttpOnly` con un BFF.
 - No hay límite de intentos de login → *rate limiting* / bloqueo temporal.
 - La clave RSA se genera al arrancar; en producción vendría de un almacén de secretos (*vault*).
 - Kafka UI no tiene autenticación: es una herramienta interna que no debe exponerse.
-- Un mensaje que falla siempre se descarta tras los reintentos → **Dead Letter Topic**.
 
 ## Estructura del repositorio
 
 ```
 proyecto-CQRS/
-├── docker-compose.yml           # PostgreSQL :5434, MongoDB :27018, Kafka :9094, Kafka UI :8090
+├── docker-compose.yml           # PostgreSQL :5434, MongoDB :27018, Kafka :9094, Kafka UI :8090 (con healthchecks)
 ├── docker/postgres-init/        # crea la base tienda_usuarios la primera vez
 ├── pom.xml                      # proyecto Maven padre (multi-módulo)
 ├── eventos/                     # contrato compartido: records de eventos, enums y nombres de tópicos
@@ -320,5 +404,6 @@ Cada servicio sigue capas simples: `api` (controladores REST) → `aplicacion` (
 ```powershell
 .\mvnw.cmd test
 ```
-35 pruebas: reglas de negocio, proyecciones, login/registro/firma de tokens y la **matriz de permisos** de cada API
-(con tokens simulados). No necesitan Docker.
+38 pruebas: reglas de negocio, proyecciones, login/registro/firma de tokens, la **matriz de permisos** de cada API
+(con tokens simulados) y el **outbox** (qué se guarda, el orden de envío y que un evento no se salta si Kafka está
+caído). No necesitan Docker.

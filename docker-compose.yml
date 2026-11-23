@@ -1,16 +1,25 @@
 # Infrastructure for "Tienda de calzado CQRS".
 # Host ports are different from the cqrs_patern project, so both can coexist.
 #
-#   PostgreSQL :5434  -> write model (tienda_comandos) + users (tienda_usuarios)
+#   PostgreSQL :5434  -> write model (tienda_comandos) + users (tienda_usuarios) + outbox (outbox_eventos)
 #   MongoDB    :27018 -> read model  (servicio-consultas)
 #   Kafka      :9094  -> messaging stack between them
 #   Kafka UI   :8090  -> web console to inspect topics and messages
+#
+# Fault tolerance of the infrastructure:
+#   - restart: unless-stopped -> if a container crashes (or Docker restarts) it is started again automatically.
+#     A manual "docker stop" is respected, so failures can still be simulated in the demo.
+#   - healthcheck -> Docker knows when each service is really ready, not only "process started"
+#     (see the STATUS column of "docker ps": healthy / unhealthy).
+#   - named volumes -> the data survives "docker compose down" and container re-creation.
+#     Kafka needs one too: it is the event log, the source used to rebuild the read model.
 name: tienda-calzado
 
 services:
   postgres:
     image: postgres:16
     container_name: tienda-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: tienda_comandos
       POSTGRES_USER: tienda
@@ -21,10 +30,16 @@ services:
       - tienda-pgdata:/var/lib/postgresql/data
       # Runs only the first time (empty volume): creates the extra database of servicio-autenticacion
       - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tienda -d tienda_comandos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongo:
     image: mongo:7.0
     container_name: tienda-mongo
+    restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: admin
@@ -32,12 +47,21 @@ services:
       - "27018:27017"
     volumes:
       - tienda-mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   kafka:
     image: apache/kafka:3.8.1   # KRaft mode: no ZooKeeper
     container_name: tienda-kafka
+    restart: unless-stopped
     ports:
       - "9094:9094"
+    volumes:
+      - tienda-kafkadata:/var/lib/kafka/data
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -50,19 +74,32 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      # Event log stored in the named volume (the image default is a folder inside the container,
+      # which is lost when the container is re-created)
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      # Topics are declared explicitly by servicio-comandos (the owner of the events),
-      # so a typo in a topic name never creates a new topic by accident.
+      # Topics are declared explicitly by the services (servicio-comandos declares the event topics,
+      # the consumers declare their .DLT topics), so a typo in a topic name never creates a new topic.
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+    healthcheck:
+      # Asks the broker for its API versions: succeeds only when Kafka really answers requests.
+      # Small heap so the check itself does not use the 256 MB of the broker settings.
+      test: ["CMD-SHELL", "KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9094 > /dev/null 2>&1"]
+      interval: 20s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
 
   kafka-ui:
     image: kafbat/kafka-ui:v1.0.0
     container_name: tienda-kafka-ui
+    restart: unless-stopped
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy   # waits until Kafka really answers
     ports:
       - "8090:8080"
     environment:
@@ -73,3 +110,4 @@ services:
 volumes:
   tienda-pgdata:
   tienda-mongodata:
+  tienda-kafkadata:

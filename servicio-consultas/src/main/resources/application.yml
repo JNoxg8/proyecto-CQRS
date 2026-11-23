@@ -7,9 +7,11 @@ spring:
 
   # Read model: MongoDB (docker-compose service "mongo", host port 27018).
   # authSource=admin -> the "admin" user was created in the "admin" database.
+  # serverSelectionTimeoutMS=5000 -> if MongoDB is down, an operation fails after 5 s (default 30 s), so the
+  # Kafka error handler can retry it with its own back-off (see config/ErroresKafkaConfig).
   data:
     mongodb:
-      uri: mongodb://admin:admin@localhost:27018/tienda_consultas?authSource=admin
+      uri: mongodb://admin:admin@localhost:27018/tienda_consultas?authSource=admin&serverSelectionTimeoutMS=5000
       auto-index-creation: true   # creates the @Indexed indexes of the read model
 
   # Public keys of servicio-autenticacion: used to verify the signature of every JWT
